@@ -3,7 +3,7 @@ import { WalletDto } from "../dto/wallet.dto";
 
 
 export const toWalletDto = (data: WalletEntity): WalletDto => {
-    const { id, account_no, currency, balance, user_id, status, system } = data;
-    let walletDto: WalletDto = { id, account_no, currency, balance, user_id, status, system_name: system.app_name };
+    const { id, account_no, currency, balance, user, status, system } = data;
+    let walletDto: WalletDto = { id, account_no, currency, balance, user_id: user.uuid, status, system_name: system.app_name };
     return walletDto;
 };

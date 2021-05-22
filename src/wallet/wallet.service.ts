@@ -1,6 +1,9 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { SystemEntity } from 'src/system/entity/system.entity';
+import { UserCreateDto } from 'src/user/dto/user.createDto.dto';
+import { UserEntity } from 'src/user/entity/user.entity';
+import { UserService } from 'src/user/user.service';
 import { Not, Repository } from 'typeorm';
 import { WalletCreateDto } from './dto/wallet.createDto.dto';
 import { WalletUpdateDto } from './dto/wallet.updateDto.dto';
@@ -12,11 +15,12 @@ export class WalletService {
 
     constructor(
         @InjectRepository(WalletEntity) private readonly walletRepository: Repository<WalletEntity>,
-        @InjectRepository(SystemEntity) private readonly systemRepository: Repository<SystemEntity>
+        @InjectRepository(SystemEntity) private readonly systemRepository: Repository<SystemEntity>,
+        private readonly userService: UserService
     ) { }
 
     async findAll(): Promise<Array<object>> {
-        const wallets = await this.walletRepository.find({ relations: ['system'] });
+        const wallets = await this.walletRepository.find({ relations: ['system', 'user'] });
         return wallets.map(wallet => toWalletDto(wallet));
     }
 
@@ -36,9 +40,18 @@ export class WalletService {
 
     async create(walletCreateDto: WalletCreateDto): Promise<object> {
 
-        const { user_id, currency, wallet_type, status, system_id } = walletCreateDto;
+        const { currency, wallet_type, status, system_id } = walletCreateDto;
+        const { name, mobile, email, userStatus } = walletCreateDto;
 
-        const userWalletExists = await this.walletRepository.findOne({ where: { user_id: user_id }, relations: ['system'] });
+        let user = await this.userService.findOne({ where: { mobile: mobile } });
+
+        if (!user) {
+            await this.userService.create({ name, mobile, email, status: userStatus });
+        }
+
+        user = await this.userService.findOne({ where: { mobile: mobile } });
+
+        const userWalletExists = await this.walletRepository.findOne({ where: { user: user }, relations: ['system'] });
 
         if (userWalletExists) {
             throw new HttpException({
@@ -69,11 +82,11 @@ export class WalletService {
         // console.log(lastAccountNo);
         const account_prefix = system.account_prefix;
         const acc_num = lastAccountNo && lastAccountNo.hasOwnProperty('account_actual') ? lastAccountNo.account_actual : '';
-        const account_actual = await (this._zeroPad( Number(acc_num) + 1, 16) ).toString();        
+        const account_actual = await (this._zeroPad(Number(acc_num) + 1, 16)).toString();
         const account_no = system.account_prefix + account_actual;
 
         const wallet: WalletEntity = await this.walletRepository.create({
-            user_id,
+            user,
             account_prefix,
             account_actual,
             account_no,

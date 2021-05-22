@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
 import { ApiBody, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { UserCreateDto } from 'src/user/dto/user.createDto.dto';
 import { WalletCreateDto } from './dto/wallet.createDto.dto';
 import { WalletUpdateDto } from './dto/wallet.updateDto.dto';
 import { WalletService } from './wallet.service';

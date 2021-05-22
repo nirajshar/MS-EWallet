@@ -1,6 +1,4 @@
 import { IsNotEmpty } from "class-validator";
-import { SystemEntity } from "src/system/entity/system.entity";
-
 
 export class WalletDto {
 

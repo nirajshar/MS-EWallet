@@ -5,6 +5,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { SystemModule } from './system/system.module';
 import { WalletModule } from './wallet/wallet.module';
+import { UserModule } from './user/user.module';
 
 @Module({
   imports: [
@@ -19,7 +20,8 @@ import { WalletModule } from './wallet/wallet.module';
       entities: ["dist/**/**.entity{.ts,.js}"],
       synchronize: true,
     }),
-    WalletModule
+    WalletModule,
+    UserModule
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -4,14 +4,29 @@ import { IsNotEmpty } from "class-validator";
 
 export class WalletCreateDto {
 
+    // User Details 
     @ApiProperty()
     @IsNotEmpty()
-    user_id: string;
+    name: string;
 
+    @ApiProperty()
+    @IsNotEmpty()
+    mobile: string;
+
+    @ApiProperty()
+    @IsNotEmpty()
+    email: string;
+
+    @ApiProperty()
+    @IsNotEmpty()
+    userStatus: boolean;
+
+    // System ID 
     @ApiProperty()
     @IsNotEmpty()
     system_id: string;
   
+    // Wallet Details
     @ApiProperty()
     @IsNotEmpty()
     currency: string;

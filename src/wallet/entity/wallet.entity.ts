@@ -1,5 +1,6 @@
 import { SystemEntity } from "src/system/entity/system.entity";
-import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
+import { UserEntity } from "src/user/entity/user.entity";
+import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, OneToOne, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
 
 enum WalletType {
     CLOSED = "closed"   
@@ -69,12 +70,9 @@ export class WalletEntity {
     system: SystemEntity;
 
     // - User UUID
-    @Column({
-        type: 'varchar',
-        nullable: false,
-        length: 200        
-    })
-    user_id: string;
+    @OneToOne( type => UserEntity)
+    @JoinColumn({ name: 'user_id' })    
+    user: UserEntity;
 
 }
 
