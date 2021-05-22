@@ -26,8 +26,8 @@ EWallet (closed wallet) microservice for storing System (Master) & Wallet (Users
       - [ PUT ]     - Update Wallet details 
       - [ PUT ]     - Block / Unblock Wallet 
       - [ DELETE ]  - Delete Wallet [Hard] (Restrict Cascade)
-          
-		B. User
+      
+    B. User
 
       - [ POST ]    - Debit from Wallet [ Owners Account ] [ Transfer: Regular to Master Account ] 
       - [ POST ]    - Credit to Wallet  [ Owners Account ] [ Accept Payment via Payment Gateway, Virtual Account, UPI ]
