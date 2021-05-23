@@ -1,30 +1,14 @@
 import { ApiProperty } from "@nestjs/swagger";
 import { IsNotEmpty } from "class-validator";
+import { UserCreateDto } from "./user.createDto.dto";
 
 
 export class WalletCreateDto {
 
-    // User Details 
+    // User Details
     @ApiProperty()
     @IsNotEmpty()
-    name: string;
-
-    @ApiProperty()
-    @IsNotEmpty()
-    mobile: string;
-
-    @ApiProperty()
-    @IsNotEmpty()
-    email: string;
-
-    @ApiProperty()
-    @IsNotEmpty()
-    userStatus: boolean;
-
-    // System ID 
-    @ApiProperty()
-    @IsNotEmpty()
-    system_id: string;
+    user: UserCreateDto;
   
     // Wallet Details
     @ApiProperty()
@@ -37,6 +21,11 @@ export class WalletCreateDto {
 
     @ApiProperty()
     @IsNotEmpty()
-    status: boolean;  
+    status: boolean;
+    
+    // System ID 
+    @ApiProperty()
+    @IsNotEmpty()
+    system_id: string;
 
 }

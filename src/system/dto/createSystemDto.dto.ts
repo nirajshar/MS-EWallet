@@ -1,5 +1,5 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { IsNotEmpty } from "class-validator";
+import { IsAlpha, IsNotEmpty } from "class-validator";
 
 
 export class CreateSystemDto {
@@ -13,7 +13,7 @@ export class CreateSystemDto {
     app_description: string;
 
     @ApiProperty()
-    @IsNotEmpty()
+    @IsNotEmpty()   
     key: string;  
 
     @ApiProperty()
@@ -26,6 +26,7 @@ export class CreateSystemDto {
 
     @ApiProperty()
     @IsNotEmpty()
+    @IsAlpha()
     account_prefix: string;  
 
 

@@ -52,7 +52,9 @@ export class SystemController {
         return this.systemService.delete(id);
     }
 
+    
     // Update Access Token    
+    @ApiTags('System-Access')
     @ApiResponse({ status: 204, description: 'System Access updated successfully' })
     @ApiResponse({ status: 404, description: 'System not found' })
     @Post('access-key/generate/:id')
@@ -60,7 +62,8 @@ export class SystemController {
         return this.systemService.generateNewAccessToken(id);
     }
 
-    // Get Access Token    
+    // Get Access Token
+    @ApiTags('System-Access')
     @ApiResponse({ status: 204, description: 'System Access updated successfully' })
     @ApiResponse({ status: 404, description: 'System not found' })
     @Get('access-key/:id')

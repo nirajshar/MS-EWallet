@@ -15,7 +15,7 @@ async function bootstrap() {
     .setTitle('EWallet-Service')
     .setDescription('EWallet Service : Stores & Handle Wallet for User wrt System')
     .setVersion('1.0')
-    .addBearerAuth()
+    // .addBearerAuth()
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

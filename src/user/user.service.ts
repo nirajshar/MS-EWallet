@@ -4,7 +4,7 @@ import { Repository } from 'typeorm';
 import { UserCreateDto } from './dto/user.createDto.dto';
 import { UserEntity } from './entity/user.entity';
 import { toUserDto } from './mapper/toUserDto.dto';
-import { fromString  } from 'uuidv4';
+import { fromString } from 'uuidv4';
 import { UserUpdateDto } from './dto/user.updateDto.dto';
 
 @Injectable()
@@ -23,7 +23,7 @@ export class UserService {
     async findOne(options?: object): Promise<object> {
 
         const user = await this.userRepository.findOne(options);
-       
+
         return user;
     }
 
@@ -61,13 +61,15 @@ export class UserService {
         return {
             status: 'success',
             message: 'User created successfully',
-            data: toUserDto(user)
+            data: {
+                user: toUserDto(user)
+            }
         };
     }
 
-    async update(uuid: string, userUpdateDto: UserUpdateDto): Promise<object> {
+    async updateOne(uuid: string, userUpdateDto: UserUpdateDto): Promise<object> {
 
-        const userExists = await this.userRepository.findOne({ where: { uuid }, relations: ['wallet'] });
+        const userExists = await this.userRepository.findOne({ where: { uuid } });
 
         if (!userExists) {
             throw new HttpException({
@@ -76,21 +78,23 @@ export class UserService {
             }, HttpStatus.NOT_FOUND)
         }
 
-        await this.userRepository.update({ uuid }, userUpdateDto);
+        await this.userRepository.update({ id: userExists.id }, userUpdateDto);
 
-        let userUpdated = await this.userRepository.findOne({ where: { uuid }, relations: ['system'] });
+        const userUpdated = await this.userRepository.findOne({ where: { uuid } });
 
         return {
             status: 'success',
             message: 'Wallet updated successfully',
-            data: toUserDto(userUpdated)
+            data: {
+                user: toUserDto(userUpdated)
+            }
         }
 
     }
 
     async delete(uuid: string): Promise<object> {
 
-        const user: UserEntity = await this.userRepository.findOne({ where: { uuid }, relations: ['wallet'] });
+        const user: UserEntity = await this.userRepository.findOne({ where: { uuid } });
 
         if (!user) {
             throw new HttpException({
@@ -104,7 +108,9 @@ export class UserService {
         return {
             status: HttpStatus.NO_CONTENT,
             message: 'User deleted successfully',
-            data: toUserDto(user)
+            data: {
+                user: toUserDto(user)
+            }
         };
     }
 

@@ -45,7 +45,7 @@ export class SystemService {
             }, HttpStatus.CONFLICT);
         }
 
-        const systemKey = await this.systemRepository.findOne({ where: { key } });
+        const systemKey = await this.systemRepository.findOne({ where: { key: key.trim() } });
 
         if (systemKey) {
             throw new HttpException({
@@ -62,11 +62,11 @@ export class SystemService {
         const system: SystemEntity = await this.systemRepository.create({
             app_name,
             app_description,
-            key,
+            key : key.trim(),
             token,
             whitelist_ip,
             status,
-            account_prefix
+            account_prefix: account_prefix.trim()
         });
 
         let systemCreated = await this.systemRepository.save(system);

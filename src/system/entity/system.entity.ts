@@ -52,8 +52,7 @@ export class SystemEntity {
     @UpdateDateColumn() updatedAt: Date;
 
     @Column({
-        type: 'varchar',
-        nullable: true,
+        type: 'varchar',        
         unique: true
     })
     account_prefix: string;

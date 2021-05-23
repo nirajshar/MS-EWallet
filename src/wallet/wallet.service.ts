@@ -1,10 +1,9 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { SystemEntity } from 'src/system/entity/system.entity';
-import { UserCreateDto } from 'src/user/dto/user.createDto.dto';
-import { UserEntity } from 'src/user/entity/user.entity';
+import { UserUpdateDto } from './dto/user.updateDto.dto';
 import { UserService } from 'src/user/user.service';
-import { Not, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { WalletCreateDto } from './dto/wallet.createDto.dto';
 import { WalletUpdateDto } from './dto/wallet.updateDto.dto';
 import { WalletEntity } from './entity/wallet.entity';
@@ -26,7 +25,7 @@ export class WalletService {
 
     async findOne(id: string): Promise<object> {
 
-        const wallet = await this.walletRepository.findOne({ where: { id }, relations: ['system'] });
+        const wallet = await this.walletRepository.findOne({ where: { id }, relations: ['system', 'user'] });
 
         if (!wallet) {
             throw new HttpException({
@@ -41,12 +40,17 @@ export class WalletService {
     async create(walletCreateDto: WalletCreateDto): Promise<object> {
 
         const { currency, wallet_type, status, system_id } = walletCreateDto;
-        const { name, mobile, email, userStatus } = walletCreateDto;
+        const { mobile } = walletCreateDto.user;
 
         let user = await this.userService.findOne({ where: { mobile: mobile } });
 
         if (!user) {
-            await this.userService.create({ name, mobile, email, status: userStatus });
+            user = await this.userService.create({
+                name: walletCreateDto.user.name,
+                mobile: walletCreateDto.user.mobile,
+                email: walletCreateDto.user.email,
+                status: walletCreateDto.user.status
+            });
         }
 
         user = await this.userService.findOne({ where: { mobile: mobile } });
@@ -101,13 +105,18 @@ export class WalletService {
         return {
             status: 'success',
             message: 'Wallet created successfully',
-            data: toWalletDto(walletCreated)
+            data: {
+                wallet: toWalletDto(walletCreated)
+            }
+
         };
     }
 
     async update(id: string, walletUpdateDto: WalletUpdateDto): Promise<object> {
 
-        const walletExists = await this.walletRepository.findOne({ where: { id }, relations: ['system'] });
+        const { wallet_type, status } = walletUpdateDto
+
+        const walletExists = await this.walletRepository.findOne({ where: { id }, relations: ['system', 'user'] });
 
         if (!walletExists) {
             throw new HttpException({
@@ -116,21 +125,30 @@ export class WalletService {
             }, HttpStatus.NOT_FOUND)
         }
 
-        await this.walletRepository.update({ id }, walletUpdateDto);
+        await this.walletRepository.update({ id }, {
+            wallet_type: wallet_type,
+            status: status
+        });
 
-        let walletUpdated = await this.walletRepository.findOne({ where: { id }, relations: ['system'] });
+        if(walletUpdateDto.hasOwnProperty('user')) {
+            await this.userService.updateOne( walletExists.user.uuid , walletUpdateDto.user)
+        }
+
+        let walletUpdated = await this.walletRepository.findOne({ where: { id }, relations: ['system', 'user'] });
 
         return {
             status: 'success',
             message: 'Wallet updated successfully',
-            data: toWalletDto(walletUpdated)
+            data: {
+                wallet: toWalletDto(walletUpdated)
+            }
         }
 
     }
 
     async delete(id: string): Promise<object> {
 
-        const wallet: WalletEntity = await this.walletRepository.findOne({ where: { id }, relations: ['system'] });
+        const wallet: WalletEntity = await this.walletRepository.findOne({ where: { id }, relations: ['system', 'user'] });
 
         if (!wallet) {
             throw new HttpException({
@@ -144,7 +162,9 @@ export class WalletService {
         return {
             status: HttpStatus.NO_CONTENT,
             message: 'Wallet deleted successfully',
-            data: toWalletDto(wallet)
+            data: {
+                wallet: toWalletDto(wallet)
+            }
         };
     }
 
