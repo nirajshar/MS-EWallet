@@ -34,4 +34,19 @@ export class UpdateSystemDto {
     @IsOptional()
     account_prefix: string;
 
+    // Required details for Wallet  
+    @ApiProperty()
+    @IsString()
+    @IsOptional()
+    email: string;
+
+    @ApiProperty()
+    @IsString()
+    @IsOptional()
+    mobile: string;
+
+    @ApiProperty()
+    @IsString()
+    @IsOptional()
+    currency: string;
 }

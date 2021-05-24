@@ -29,5 +29,16 @@ export class CreateSystemDto {
     @IsAlpha()
     account_prefix: string;  
 
+    // Required details for Wallet  
+    @ApiProperty()
+    @IsNotEmpty()
+    email: string;
 
+    @ApiProperty()
+    @IsNotEmpty()
+    mobile: string;
+
+    @ApiProperty()
+    @IsNotEmpty()
+    currency: string;
 }

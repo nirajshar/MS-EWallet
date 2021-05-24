@@ -1,4 +1,4 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { SystemEntity } from 'src/system/entity/system.entity';
 import { UserUpdateDto } from './dto/user.updateDto.dto';
@@ -8,6 +8,9 @@ import { WalletCreateDto } from './dto/wallet.createDto.dto';
 import { WalletUpdateDto } from './dto/wallet.updateDto.dto';
 import { WalletEntity } from './entity/wallet.entity';
 import { toWalletDto } from './mapper/toWalletDto.dto';
+import { PayToMasterDto } from './dto/PayToMasterDto.dto';
+import { TransactionService } from 'src/transaction/transaction.service';
+import { DepositToUserDto } from './dto/depositToUserDto.dto';
 
 @Injectable()
 export class WalletService {
@@ -15,8 +18,11 @@ export class WalletService {
     constructor(
         @InjectRepository(WalletEntity) private readonly walletRepository: Repository<WalletEntity>,
         @InjectRepository(SystemEntity) private readonly systemRepository: Repository<SystemEntity>,
-        private readonly userService: UserService
+        private readonly userService: UserService,
+        private readonly transactionService: TransactionService
     ) { }
+
+    private readonly logger = new Logger(WalletService.name);
 
     async findAll(): Promise<Array<object>> {
         const wallets = await this.walletRepository.find({ relations: ['system', 'user'] });
@@ -37,7 +43,7 @@ export class WalletService {
         return toWalletDto(wallet);
     }
 
-    async create(walletCreateDto: WalletCreateDto): Promise<object> {
+    async create(walletCreateDto: WalletCreateDto, wallet_user_type: string = 'REGULAR'): Promise<object> {
 
         const { currency, wallet_type, status, system_id } = walletCreateDto;
         const { mobile } = walletCreateDto.user;
@@ -97,7 +103,8 @@ export class WalletService {
             currency,
             wallet_type,
             status,
-            system
+            system,
+            wallet_user_type
         });
 
         let walletCreated = await this.walletRepository.save(wallet);
@@ -130,8 +137,8 @@ export class WalletService {
             status: status
         });
 
-        if(walletUpdateDto.hasOwnProperty('user')) {
-            await this.userService.updateOne( walletExists.user.uuid , walletUpdateDto.user)
+        if (walletUpdateDto.hasOwnProperty('user')) {
+            await this.userService.updateOne(walletExists.user.uuid, walletUpdateDto.user)
         }
 
         let walletUpdated = await this.walletRepository.findOne({ where: { id }, relations: ['system', 'user'] });
@@ -168,6 +175,7 @@ export class WalletService {
         };
     }
 
+    // Private function
     private _zeroPad(num, numZeros = 16) {
         var n = Math.abs(num);
         var zeros = Math.max(0, numZeros - Math.floor(n).toString().length);
@@ -178,4 +186,104 @@ export class WalletService {
 
         return zeroString + n;
     }
+
+    // Pay from Wallet (REGULAR) to Wallet (MASTER)
+    async payToMasterWallet(payToMasterDto: PayToMasterDto) {
+
+        const { source_wallet_id, destination_wallet_id } = payToMasterDto;
+        const { amount, txn_type, txn_description } = payToMasterDto;
+
+        let transaction : any;
+
+        const sourceWallet = await this.walletRepository.findOne({ where: { id: source_wallet_id } });
+
+        if (!sourceWallet) {
+            throw new HttpException({
+                status: HttpStatus.CONFLICT,
+                message: `Source wallet not found !`
+            }, HttpStatus.CONFLICT);
+        }
+
+        const destinationWallet = await this.walletRepository.findOne({ where: { id: destination_wallet_id, wallet_user_type: 'MASTER' } });
+
+        if (!destinationWallet) {
+            throw new HttpException({
+                status: HttpStatus.CONFLICT,
+                message: `Master wallet not found !`
+            }, HttpStatus.CONFLICT);
+        }
+
+        try {
+
+            transaction = await this.transactionService.payToMasterTransaction({
+                currency: sourceWallet.currency,
+                amount: amount,
+                txn_type: txn_type,
+                txn_description: txn_description,
+                source_wallet_id: sourceWallet,
+                destination_wallet_id: destinationWallet
+            });
+
+        } catch (err) {
+            throw new HttpException({
+                status: HttpStatus.SERVICE_UNAVAILABLE,
+                message: 'Something went wrong',
+            }, HttpStatus.SERVICE_UNAVAILABLE);
+
+            this.logger.log(err);            
+        }
+
+        return transaction;  
+    }
+
+    // Deposit from Bank (USER) to Wallet (REGULAR) 
+    async depositToUserWallet(depositToUserDto: DepositToUserDto ) {
+
+        const { amount, txn_type, txn_description, destination_wallet_id } = depositToUserDto;
+        const { bank_name, bank_ifsc, account_holder_name, account_no } = depositToUserDto.bank;
+
+        let transaction : any;
+
+        const destinationWallet = await this.walletRepository.findOne({ where: { id: destination_wallet_id, wallet_user_type: 'REGULAR' } });
+
+        if (!destinationWallet) {
+            throw new HttpException({
+                status: HttpStatus.CONFLICT,
+                message: `Master wallet not found !`
+            }, HttpStatus.CONFLICT);
+        }
+
+
+        try {
+
+            transaction = await this.transactionService.depositToUserTransaction({
+                currency: destinationWallet.currency,
+                amount: amount,
+                txn_type: txn_type,
+                txn_description: txn_description,                
+                destination_wallet_id: destinationWallet,
+                bank: {
+                    bank_name,
+                    bank_ifsc,
+                    account_holder_name,
+                    account_no
+                }
+            });
+
+        } catch (err) {
+            throw new HttpException({
+                status: HttpStatus.SERVICE_UNAVAILABLE,
+                message: 'Something went wrong',
+            }, HttpStatus.SERVICE_UNAVAILABLE);
+
+            this.logger.log(err);            
+        }
+
+        return transaction;
+
+    }
+
+    
+
+
 }

@@ -74,6 +74,13 @@ export class WalletEntity {
     @JoinColumn({ name: 'user_id' })    
     user: UserEntity;
 
+    @Column({
+        type: "enum",        
+        enum: ['MASTER', 'REGULAR'],
+        enumName: 'wallet_user_type',
+        default: 'REGULAR'
+    })
+    public wallet_user_type: string;
 }
 
 

@@ -39,6 +39,7 @@
     "rxjs": "^6.6.3",
     "swagger-ui-express": "^4.1.6",
     "typeorm": "^0.2.32",
+    "typeorm-encrypted": "^0.5.6",
     "uuidv4": "^6.2.8"
   },
   "devDependencies": {
