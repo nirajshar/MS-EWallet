@@ -3,6 +3,7 @@ import { AppModule } from './app.module';
 import * as helmet from 'helmet';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
+import { HttpExceptionFilter } from './shared/http-exception.filter';
 
 
 async function bootstrap() {
@@ -10,6 +11,7 @@ async function bootstrap() {
 
   app.use(helmet());
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
+  // app.useGlobalFilters(new HttpExceptionFilter());
 
   const config = new DocumentBuilder()
     .setTitle('EWallet-Service')

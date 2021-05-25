@@ -133,8 +133,8 @@ export class WalletService {
         }
 
         await this.walletRepository.update({ id }, {
-            wallet_type: wallet_type,
-            status: status
+            wallet_type: wallet_type != '' ? wallet_type : walletExists.wallet_type,
+            status: status != walletExists.status && status !== undefined ? status : walletExists.status
         });
 
         if (walletUpdateDto.hasOwnProperty('user')) {
