@@ -1,21 +1,22 @@
 import { SystemEntity } from "src/system/entity/system.entity";
+import { TransactionEntity } from "src/transaction/entity/transaction.entity";
 import { UserEntity } from "src/user/entity/user.entity";
-import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, OneToOne, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
+import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, OneToMany, OneToOne, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
 
 enum WalletType {
-    CLOSED = "closed"   
+    CLOSED = "closed"
 }
 
 enum CurrencyType {
-    INR = "INR"   
+    INR = "INR"
 }
 
 @Entity('wallet')
 export class WalletEntity {
-    
+
     @PrimaryGeneratedColumn('uuid')
-    id : string;
-    
+    id: string;
+
     @Column({
         type: 'varchar',
         nullable: false,
@@ -43,13 +44,23 @@ export class WalletEntity {
         enum: CurrencyType,
         default: CurrencyType.INR
     })
-    currency: string;    
+    currency: string;
 
-    @Column("decimal", { precision: 10, scale: 2, default: 0.00 })
+    @Column("decimal", {
+        precision: 10, scale: 2, default: 0.00,
+        transformer: {
+            to(value) {
+                return value;
+            },
+            from(value) {
+                return parseFloat(value);
+            },
+        },
+    })
     balance: number;
 
     @Column({
-        type: "enum",        
+        type: "enum",
         enum: WalletType,
         enumName: 'WalletEnum',
         default: WalletType.CLOSED
@@ -61,7 +72,7 @@ export class WalletEntity {
     })
     status: boolean;
 
-    @CreateDateColumn() createdAt: Date;    
+    @CreateDateColumn() createdAt: Date;
     @UpdateDateColumn() updatedAt: Date;
 
     // - System UUID    
@@ -70,17 +81,20 @@ export class WalletEntity {
     system: SystemEntity;
 
     // - User UUID
-    @OneToOne( type => UserEntity)
-    @JoinColumn({ name: 'user_id' })    
+    @OneToOne(type => UserEntity)
+    @JoinColumn({ name: 'user_id' })
     user: UserEntity;
 
     @Column({
-        type: "enum",        
+        type: "enum",
         enum: ['MASTER', 'REGULAR'],
         enumName: 'wallet_user_type',
         default: 'REGULAR'
     })
     public wallet_user_type: string;
+
+    @OneToMany(type => TransactionEntity, transaction => transaction.wallet)
+    transactions: TransactionEntity[];
 }
 
 

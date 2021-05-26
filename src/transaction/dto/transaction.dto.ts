@@ -1,5 +1,6 @@
 import { IsNotEmpty } from "class-validator";
 import { WalletEntity } from "src/wallet/entity/wallet.entity";
+import { BankEntity } from "../entity/bank.entity";
 
 
 export class TransactionDto {
@@ -23,7 +24,10 @@ export class TransactionDto {
     txn_description: string;
 
     @IsNotEmpty()
-    source_wallet: WalletEntity;
+    source_wallet?: WalletEntity;
+
+    @IsNotEmpty()
+    bank?: BankEntity;
 
     @IsNotEmpty()
     destination_wallet: WalletEntity;

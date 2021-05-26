@@ -1,7 +1,7 @@
 import { IsNotEmpty, IsOptional } from "class-validator";
-import { TransactionEntity } from "src/transaction/entity/transaction.entity";
+import { WalletTransactionDto } from "../dto/wallet-transaction.dto";
 
-export class WalletDto {
+export class WalletTransactionBankDto {
 
     @IsNotEmpty()
     id: string;   
@@ -19,13 +19,15 @@ export class WalletDto {
     user_id: string;   
 
     @IsNotEmpty()
-    system_name: string;   
+    system_id: string;   
 
     @IsNotEmpty()
     status: boolean;
     
     @IsNotEmpty()
     wallet_user_type: string;  
- 
+    
+    @IsOptional()
+    transactions?: WalletTransactionDto[];
 
 }

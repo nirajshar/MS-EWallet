@@ -1,5 +1,5 @@
 import { WalletEntity } from "src/wallet/entity/wallet.entity";
-import { Column, CreateDateColumn, Entity, JoinColumn, OneToOne, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
+import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, OneToOne, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
 import { BankEntity } from "./bank.entity";
 
 @Entity('transaction')
@@ -34,7 +34,7 @@ export class TransactionEntity {
         enum: ['CREDIT', 'DEBIT', 'REFUND'],
         default: null
     })
-    txn_type: string;
+    public txn_type: string;
 
     @Column({
         type: 'text',
@@ -42,12 +42,12 @@ export class TransactionEntity {
     })
     txn_description: string;
 
-    @OneToOne(type => WalletEntity)
-    @JoinColumn({name: 'source_wallet_id'})
+    @ManyToOne(type => WalletEntity, source_wallet => source_wallet.id)
+    @JoinColumn({ name: 'source_wallet_id' })
     source_wallet: WalletEntity;
 
-    @OneToOne(type => WalletEntity)
-    @JoinColumn({name: 'destination_wallet_id'})
+    @ManyToOne(type => WalletEntity, destination_wallet => destination_wallet.id, { nullable: false })
+    @JoinColumn({ name: 'destination_wallet_id' })
     destination_wallet: WalletEntity;
 
     @Column({
@@ -55,18 +55,19 @@ export class TransactionEntity {
         enum: ['FAILURE', 'PENDING', 'SUCCESS'],
         default: 'PENDING'
     })
-    txn_status: string;
+    public txn_status: string;
 
     @CreateDateColumn() createdAt: Date;
     @UpdateDateColumn() updatedAt: Date;
 
-    // - User UUID
-    // @OneToOne( type => BankEntity)
-    // @JoinColumn({ name: 'bank_id' })    
-    // bank: BankEntity;
-
+    // - Bank UUID
     @OneToOne(type => BankEntity, bank => bank.id)
     @JoinColumn({ name: 'bank_id' })
     bank: BankEntity;
-    
+
+    @ManyToOne(type => WalletEntity, wallet => wallet.id)
+    @JoinColumn({ name: 'wallet_id', referencedColumnName: 'id' })
+    wallet: WalletEntity;
+
+
 }

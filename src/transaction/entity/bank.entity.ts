@@ -1,4 +1,4 @@
-import { Column, Entity, JoinColumn, OneToOne, PrimaryGeneratedColumn } from "typeorm";
+import { Column, CreateDateColumn, Entity, JoinColumn, OneToOne, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
 import { ExtendedColumnOptions } from "typeorm-encrypted";
 import { TransactionEntity } from "./transaction.entity";
 
@@ -33,18 +33,21 @@ export class BankEntity {
     account_holder_name: string;
 
     @Column(<ExtendedColumnOptions>{
-        type: 'varchar',
+        type: 'text',
         nullable: false,
         encrypt: {
-            key: process.env.DB_COLUMN_ENCRYPT_KEY,
-            algorithm: process.env.DB_COLUMN_ALGORITHM,
-            ivLength: Number(process.env.DB_COLUMN_ivLength)
+            key: process.env.DB_COLUMN_ENCRYPT_KEY || 'ABCD',
+            algorithm: process.env.DB_COLUMN_ALGORITHM || 'aes-256-cbc',
+            ivLength: Number(process.env.DB_COLUMN_ivLength) || 16
         }
     })
     account_no: string;
 
-    @OneToOne(type => TransactionEntity, transaction => transaction.id)
-    @JoinColumn({ name: 'transaction_id' })
-    transaction: TransactionEntity;
+    @CreateDateColumn() createdAt: Date;
+    @UpdateDateColumn() updatedAt: Date;
+
+    // @OneToOne(type => TransactionEntity, transaction => transaction.id)
+    // @JoinColumn({ name: 'transaction_id' })
+    // transaction: TransactionEntity;
 
 }

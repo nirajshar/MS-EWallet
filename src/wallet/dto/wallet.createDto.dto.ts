@@ -17,10 +17,6 @@ export class WalletCreateDto {
    
     @ApiProperty()
     @IsNotEmpty()
-    wallet_type: string;  
-
-    @ApiProperty()
-    @IsNotEmpty()
     status: boolean;
     
     // System ID 

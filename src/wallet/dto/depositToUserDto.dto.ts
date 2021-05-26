@@ -1,5 +1,5 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { IsNotEmpty } from "class-validator";
+import { IsNotEmpty, IsNumber, Min } from "class-validator";
 import { BankCreateDto } from "src/transaction/dto/bank.createDto.dto";
 
 
@@ -7,11 +7,8 @@ export class DepositToUserDto {
 
     @ApiProperty()
     @IsNotEmpty()
+    @IsNumber()
     amount: number;
-
-    @ApiProperty()
-    @IsNotEmpty()
-    txn_type: string;
 
     @ApiProperty()
     @IsNotEmpty()
@@ -21,8 +18,8 @@ export class DepositToUserDto {
     @IsNotEmpty()
     bank: BankCreateDto;
 
-    @ApiProperty()
-    @IsNotEmpty()
-    destination_wallet_id: string;
+    // @ApiProperty()
+    // @IsNotEmpty()
+    // destination_wallet_id: string;
 
 }

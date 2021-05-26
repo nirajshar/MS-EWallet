@@ -95,7 +95,6 @@ export class SystemService {
                     status: status
                 },
                 currency: currency,
-                wallet_type: 'closed',
                 status: status,
                 system_id: system.id
             }, 'MASTER');
@@ -177,9 +176,9 @@ export class SystemService {
                 status: [true,false].includes(status) ? status : undefined
             };
 
-            data = JSON.parse(JSON.stringify(data));
+            data = JSON.parse(JSON.stringify(data)); // To remove undefined Keys
             // Object.keys(data.user).forEach((k) => data.user[k] == null && delete data.user[k]);
-            console.log(data);
+            // console.log(data);
             
 
             delete updateSystemDto.mobile;

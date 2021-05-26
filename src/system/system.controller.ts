@@ -4,7 +4,6 @@ import { CreateSystemDto } from './dto/createSystemDto.dto';
 import { UpdateSystemDto } from './dto/updateSystemDto.dto';
 import { SystemService } from './system.service';
 
-@ApiTags('System')
 @Controller('system')
 export class SystemController {
 
@@ -13,6 +12,7 @@ export class SystemController {
     ) { }
 
     // Get all Systems
+    @ApiTags('System')
     @ApiResponse({ status: 200, description: 'Get all Systems in Array of Object' })
     @Get()
     async findAll() {
@@ -20,6 +20,7 @@ export class SystemController {
     }
 
     // Get System by ID
+    @ApiTags('System')
     @ApiResponse({ status: 200, description: 'Get System details by ID' })
     @ApiResponse({ status: 404, description: 'System not found' })
     @Get(':id')
@@ -28,6 +29,7 @@ export class SystemController {
     }
 
     // Create One System 
+    @ApiTags('System')
     @ApiResponse({ status: 201, description: 'System created successfully' })
     @ApiResponse({ status: 409, description: 'System already exist' })
     @Post()
@@ -36,6 +38,7 @@ export class SystemController {
     }
 
     // Update System by ID
+    @ApiTags('System')
     @ApiBody({ type: UpdateSystemDto })
     @ApiResponse({ status: 204, description: 'System updated successfully' })
     @ApiResponse({ status: 404, description: 'System not found' })
@@ -45,6 +48,7 @@ export class SystemController {
     }
 
     // Delete One System by ID
+    @ApiTags('System')
     @ApiResponse({ status: 200, description: 'System deleted successfully' })
     @ApiResponse({ status: 404, description: 'System not found' })
     @Delete(':id')
