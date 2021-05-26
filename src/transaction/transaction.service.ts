@@ -114,7 +114,7 @@ export class TransactionService {
     async depositToUserTransaction(transactionDepositCreateDto: TransactionDepositCreateDto): Promise<object> {
 
         const { currency, amount, txn_type, txn_description, destination_wallet_id } = transactionDepositCreateDto;
-        const { bank_name, bank_ifsc, account_holder_name, account_no } = transactionDepositCreateDto.bank;
+        const { bank_name, bank_ifsc, account_holder_name, account_no, utr_no } = transactionDepositCreateDto.bank;
 
         let uuid, transactionCreated, bankCreated: any;
 
@@ -127,44 +127,50 @@ export class TransactionService {
             }, HttpStatus.CONFLICT);
         }
 
+        if (utr_no === '' || utr_no === undefined || utr_no === null) {
+            throw new HttpException({
+                status: HttpStatus.BAD_REQUEST,
+                message: `UTR NO required !`
+            }, HttpStatus.BAD_REQUEST);
+        }
+
+        const utrExists = await this.bankRepository.findOne({ where: { utr_no } });
+
+        if (utrExists) {
+            throw new HttpException({
+                status: HttpStatus.CONFLICT,
+                message: `UTR already processed !`
+            }, HttpStatus.CONFLICT);
+        }
+
         uuid = await uuidv4()
 
         const { gen_uuid, txn_id } = await this._getUniqueTransaction();
 
-        try {
+        const bankCreatOne = await this.bankRepository.create({
+            uuid: uuid,
+            bank_name: bank_name,
+            bank_ifsc: bank_ifsc,
+            account_holder_name: account_holder_name,
+            account_no: account_no,
+            utr_no: utr_no
+        })
 
-            const bankCreatOne = await this.bankRepository.create({
-                uuid: uuid,
-                bank_name: bank_name,
-                bank_ifsc: bank_ifsc,
-                account_holder_name: account_holder_name,
-                account_no: account_no
-            })
+        bankCreated = await this.bankRepository.save(bankCreatOne);
 
-            bankCreated = await this.bankRepository.save(bankCreatOne);
+        const transaction: TransactionEntity = await this.transactionRepository.create({
+            uuid: gen_uuid,
+            txn_id,
+            currency,
+            amount,
+            txn_type,
+            txn_description,
+            bank: bankCreated,
+            destination_wallet: destinationWallet,
+            wallet: destinationWallet
+        });
 
-            const transaction: TransactionEntity = await this.transactionRepository.create({
-                uuid: gen_uuid,
-                txn_id,
-                currency,
-                amount,
-                txn_type,
-                txn_description,
-                bank: bankCreated,
-                destination_wallet: destinationWallet,
-                wallet: destinationWallet
-            });
-
-            transactionCreated = await this.transactionRepository.save(transaction);
-
-        } catch (err) {
-            throw new HttpException({
-                status: HttpStatus.SERVICE_UNAVAILABLE,
-                message: err,
-            }, HttpStatus.SERVICE_UNAVAILABLE);
-
-            this.logger.log(err);
-        }
+        transactionCreated = await this.transactionRepository.save(transaction);
 
         return {
             status: 'success',
@@ -175,8 +181,8 @@ export class TransactionService {
         }
     }
 
-    async updateTransactionStatus(txn_id: number, txn_status: string): Promise<void>{
-        const transaction_status = await this.transactionRepository.update({id: txn_id}, {
+    async updateTransactionStatus(txn_id: number, txn_status: string): Promise<void> {
+        const transaction_status = await this.transactionRepository.update({ id: txn_id }, {
             txn_status: txn_status
         });
     }

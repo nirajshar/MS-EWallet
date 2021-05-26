@@ -10,7 +10,7 @@ import { toWalletDto } from './mapper/toWalletDto.dto';
 import { PayToMasterDto } from './dto/PayToMasterDto.dto';
 import { TransactionService } from 'src/transaction/transaction.service';
 import { DepositToUserDto } from './dto/depositToUserDto.dto';
-import { toWalletTransactionBankDto } from './mapper/toWalletTransactionBankDto.dto';
+import { toWalletDepositDto, toWalletTransactionBankDto } from './mapper/toWalletTransactionBankDto.dto';
 import { classToPlain, plainToClass } from 'class-transformer';
 import { WalletTransactionDto } from './dto/wallet-transaction.dto';
 import { WalletTransactionBankDto } from './dto/walletTransactionBank.dto';
@@ -244,7 +244,7 @@ export class WalletService {
     async depositToUserWallet(destination_wallet_id: string, depositToUserDto: DepositToUserDto) {
 
         const { amount, txn_description } = depositToUserDto;
-        const { bank_name, bank_ifsc, account_holder_name, account_no } = depositToUserDto.bank;
+        const { bank_name, bank_ifsc, account_holder_name, account_no, utr_no } = depositToUserDto.bank;
 
 
         if (Math.sign(amount) !== 1) {
@@ -266,49 +266,39 @@ export class WalletService {
         }
 
 
-        try {
+        transaction = await this.transactionService.depositToUserTransaction({
+            currency: destinationWallet.currency,
+            amount: Math.abs(amount),
+            txn_type: 'CREDIT',
+            txn_description: txn_description,
+            destination_wallet_id: destinationWallet.id,
+            bank: {
+                bank_name,
+                bank_ifsc,
+                account_holder_name,
+                account_no,
+                utr_no
+            }
+        });
 
-            transaction = await this.transactionService.depositToUserTransaction({
-                currency: destinationWallet.currency,
-                amount: Math.abs(amount),
-                txn_type: 'CREDIT',
-                txn_description: txn_description,
-                destination_wallet_id: destinationWallet.id,
-                bank: {
-                    bank_name,
-                    bank_ifsc,
-                    account_holder_name,
-                    account_no
-                }
-            });
+        destinationWallet.balance = parseFloat(destinationWallet.balance.toFixed(2)) + parseFloat(amount.toFixed(2));
+        await this.walletRepository.save(destinationWallet);
 
-            destinationWallet.balance = parseFloat(destinationWallet.balance.toFixed(2)) + parseFloat(amount.toFixed(2));
-            await this.walletRepository.save(destinationWallet);
-
-            await this.transactionService.updateTransactionStatus(transaction.id, 'SUCCESS');
-
-        } catch (err) {
-            throw new HttpException({
-                status: HttpStatus.SERVICE_UNAVAILABLE,
-                message: err,
-            }, HttpStatus.SERVICE_UNAVAILABLE);
-
-            this.logger.log(err);
-        }
+        await this.transactionService.updateTransactionStatus(transaction.id, 'SUCCESS');
 
         let walletUpdated = await this.walletRepository.findOne({
             where: {
                 id: destination_wallet_id,
                 wallet_user_type: 'REGULAR'
             },
-            relations: ['system', 'user']
+            relations: ['user', 'system', 'transactions', 'transactions.bank']
         });
 
         return {
             status: 'success',
-            message: 'Wallet updated successfully',
+            message: 'Amount deposited in wallet successfully',
             data: {
-                wallet: toWalletDto(walletUpdated)
+                wallet: toWalletDepositDto(walletUpdated)
             }
         }
 
@@ -317,7 +307,10 @@ export class WalletService {
     // FindOne Wallet with All Transactions
     async findOneWalletWithTransactions(id: string) {
 
-        const walletTransactionBank = await this.walletRepository.findOne({ where: { id }, relations: ['user', 'system', 'transactions', 'transactions.bank'] })
+        const walletTransactionBank = await this.walletRepository.findOne({
+            where: { id },
+            relations: ['user', 'system', 'transactions', 'transactions.bank']
+        })
 
 
         if (!walletTransactionBank) {
@@ -328,7 +321,7 @@ export class WalletService {
         }
 
 
-        
+
         return toWalletTransactionBankDto(walletTransactionBank);
     }
 

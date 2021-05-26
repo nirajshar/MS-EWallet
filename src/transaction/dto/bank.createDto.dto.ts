@@ -19,4 +19,8 @@ export class BankCreateDto {
     @IsNotEmpty()
     account_no: string; 
 
+    @ApiProperty()
+    @IsNotEmpty()
+    utr_no: string; 
+
 }

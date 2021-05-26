@@ -1,3 +1,4 @@
+import { IsNotEmpty } from "class-validator";
 import { Column, CreateDateColumn, Entity, JoinColumn, OneToOne, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
 import { ExtendedColumnOptions } from "typeorm-encrypted";
 import { TransactionEntity } from "./transaction.entity";
@@ -50,4 +51,11 @@ export class BankEntity {
     // @JoinColumn({ name: 'transaction_id' })
     // transaction: TransactionEntity;
 
+    @IsNotEmpty()
+    @Column({
+        type: 'varchar',
+        nullable: false,
+        unique: true
+    })
+    utr_no: string;
 }
