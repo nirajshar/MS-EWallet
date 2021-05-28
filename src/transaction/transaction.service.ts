@@ -1,6 +1,5 @@
 import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { WalletEntity } from 'src/wallet/entity/wallet.entity';
 import { Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { TransactionCreateDto } from './dto/transaction.createDto.dto';
@@ -17,7 +16,6 @@ export class TransactionService {
 
     constructor(
         @InjectRepository(TransactionEntity) private readonly transactionRepository: Repository<TransactionEntity>,
-        @InjectRepository(WalletEntity) private readonly walletRepository: Repository<WalletEntity>,
         @InjectRepository(BankEntity) private readonly bankRepository: Repository<BankEntity>,
     ) { }
 
@@ -42,53 +40,6 @@ export class TransactionService {
         return toTransactionDto(transaction);
     }
 
-    async payToMasterTransaction(transactionCreateDto: TransactionCreateDto): Promise<object> {
-
-        const { currency, amount, txn_type, txn_description, source_wallet_id, destination_wallet_id } = transactionCreateDto;
-
-        const { gen_uuid, txn_id } = await this._getUniqueTransaction();
-
-        const sourceWallet = await this.walletRepository.findOne({ where: { id: source_wallet_id } });
-
-        if (!sourceWallet) {
-            throw new HttpException({
-                status: HttpStatus.CONFLICT,
-                message: `Source wallet not found !`
-            }, HttpStatus.CONFLICT);
-        }
-
-        const destinationWallet = await this.walletRepository.findOne({ where: { id: destination_wallet_id } });
-
-        if (!destinationWallet) {
-            throw new HttpException({
-                status: HttpStatus.CONFLICT,
-                message: `Destination wallet not found !`
-            }, HttpStatus.CONFLICT);
-        }
-
-        const transaction: TransactionEntity = await this.transactionRepository.create({
-            uuid: gen_uuid,
-            txn_id,
-            currency,
-            amount,
-            txn_type,
-            txn_description,
-            source_wallet: sourceWallet,
-            destination_wallet: destinationWallet
-        });
-
-        let transactionCreated = await this.transactionRepository.save(transaction);
-
-        return {
-            status: 'success',
-            message: 'Transaction created successfully',
-            data: {
-                transaction: toTransactionDto(transactionCreated)
-            }
-        }
-
-    }
-
     private async _getUniqueTransaction(): Promise<{ gen_uuid, txn_id }> {
 
         let uuid = await uuidv4()
@@ -111,21 +62,13 @@ export class TransactionService {
         }
     }
 
-    async depositToUserTransaction(transactionDepositCreateDto: TransactionDepositCreateDto): Promise<object> {
+    async depositToRegularTransaction(transactionDepositCreateDto: TransactionDepositCreateDto): Promise<object> {
 
-        const { currency, amount, txn_type, txn_description, destination_wallet_id } = transactionDepositCreateDto;
+        const { currency, amount, txn_type, txn_description } = transactionDepositCreateDto;
+        const { destinationWallet } = transactionDepositCreateDto;
         const { bank_name, bank_ifsc, account_holder_name, account_no, utr_no } = transactionDepositCreateDto.bank;
 
         let uuid, transactionCreated, bankCreated: any;
-
-        const destinationWallet = await this.walletRepository.findOne({ where: { id: destination_wallet_id, wallet_user_type: 'REGULAR' } });
-
-        if (!destinationWallet) {
-            throw new HttpException({
-                status: HttpStatus.CONFLICT,
-                message: `Destination wallet not found !`
-            }, HttpStatus.CONFLICT);
-        }
 
         if (utr_no === '' || utr_no === undefined || utr_no === null) {
             throw new HttpException({
@@ -158,6 +101,8 @@ export class TransactionService {
 
         bankCreated = await this.bankRepository.save(bankCreatOne);
 
+        const UTR = crypto.randomBytes(20).toString('hex').toUpperCase();
+
         const transaction: TransactionEntity = await this.transactionRepository.create({
             uuid: gen_uuid,
             txn_id,
@@ -166,8 +111,8 @@ export class TransactionService {
             txn_type,
             txn_description,
             bank: bankCreated,
-            destination_wallet: destinationWallet,
-            wallet: destinationWallet
+            wallet: destinationWallet,
+            UTR: UTR
         });
 
         transactionCreated = await this.transactionRepository.save(transaction);
@@ -176,15 +121,83 @@ export class TransactionService {
             status: 'success',
             message: 'Transaction created successfully',
             data: {
-                transaction: toTransactionDto(transactionCreated)
+                transaction: transactionCreated,
+                UTR
             }
         }
     }
 
-    async updateTransactionStatus(txn_id: number, txn_status: string): Promise<void> {
-        const transaction_status = await this.transactionRepository.update({ id: txn_id }, {
-            txn_status: txn_status
-        });
+    async updateTransactionStatus(txn_uuid: string, txn_status: string): Promise<void> {
+
+        await this.transactionRepository.update({ uuid: txn_uuid }, { txn_status: txn_status });
     }
+
+    async payToMasterTransaction(transactionCreateDto: TransactionCreateDto): Promise<object> {
+
+        const UTR = crypto.randomBytes(20).toString('hex').toUpperCase();
+
+        const debitTransaction = await this._debit(transactionCreateDto, UTR);
+        const creditTransaction = await this._credit(transactionCreateDto, UTR);
+
+        return {
+            status: 'success',
+            message: 'Amount paid to master account from source account',
+            data: {
+                debitTransaction,
+                creditTransaction,
+                UTR
+            }
+        }
+
+    }
+
+
+    private async _debit(transactionCreateDto: TransactionCreateDto, UTR: string): Promise<object> {
+
+        const { currency, amount, txn_description } = transactionCreateDto;
+        const { sourceWallet } = transactionCreateDto
+
+        const debitTxn = await this._getUniqueTransaction();
+
+        const debitTransaction: TransactionEntity = await this.transactionRepository.create({
+            uuid: debitTxn.gen_uuid,
+            txn_id: debitTxn.txn_id,
+            currency,
+            amount,
+            txn_type: 'DEBIT',
+            txn_description,
+            wallet: sourceWallet,
+            UTR: UTR
+        });
+
+        const debitTransactionCreated = await this.transactionRepository.save(debitTransaction);
+
+        return debitTransactionCreated
+    }
+
+
+    private async _credit(transactionCreateDto: TransactionCreateDto, UTR: string): Promise<object> {
+
+        const { currency, amount, txn_description } = transactionCreateDto;
+        const { destinationWallet } = transactionCreateDto
+
+        const creditTxn = await this._getUniqueTransaction();
+
+        const creditTransaction: TransactionEntity = await this.transactionRepository.create({
+            uuid: creditTxn.gen_uuid,
+            txn_id: creditTxn.txn_id,
+            currency,
+            amount,
+            txn_type: 'CREDIT',
+            txn_description,
+            wallet: destinationWallet,
+            UTR: UTR
+        });
+
+        const creditTransactionCreated = await this.transactionRepository.save(creditTransaction);
+
+        return creditTransactionCreated;
+    }
+
 
 }

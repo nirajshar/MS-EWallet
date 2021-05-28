@@ -15,18 +15,14 @@ export class TransactionCreateDto {
 
     @IsString()
     @IsNotEmpty()
-    txn_type: string;
-
-    @IsString()
-    @IsNotEmpty()
     txn_description: string;
 
     @IsString()
     @IsNotEmpty()
-    source_wallet_id: WalletEntity;
+    sourceWallet: WalletEntity;
 
     @IsString()
     @IsNotEmpty()
-    destination_wallet_id: WalletEntity;
+    destinationWallet: WalletEntity;
 
 }

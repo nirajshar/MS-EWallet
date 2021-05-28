@@ -1,7 +1,7 @@
-import { Body, Controller, Delete, Get, Headers, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, HttpCode, Param, Post, Put } from '@nestjs/common';
 import { ApiBody, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { UserCreateDto } from 'src/user/dto/user.createDto.dto';
 import { DepositToUserDto } from './dto/depositToUserDto.dto';
+import { PayToMasterDto } from './dto/PayToMasterDto.dto';
 import { WalletCreateDto } from './dto/wallet.createDto.dto';
 import { WalletUpdateDto } from './dto/wallet.updateDto.dto';
 import { WalletService } from './wallet.service';
@@ -67,17 +67,34 @@ export class WalletController {
     @ApiResponse({ status: 404, description: 'Wallet not found !' })
     @ApiBody({ type: DepositToUserDto })
     @Post('deposit')
-    async depositToUserWallet(@Headers('x-wallet-id') destination_wallet_id: string, @Body() depositToUserDto: DepositToUserDto) {
+    async depositToUserWallet(
+        @Headers('user-wallet-id') destination_wallet_id: string,
+        @Body() depositToUserDto: DepositToUserDto) {
         return this.walletService.depositToUserWallet(destination_wallet_id, depositToUserDto);
     }
 
+    // Get Wallet with All Transactions
     @ApiTags('Wallet-Transaction')
     @ApiResponse({ status: 200, description: 'Get Wallet details by ID' })
     @ApiResponse({ status: 404, description: 'Wallet not found' })
-    @Get('wallet-transactions/:id')
-    async findOneWalletWithTransactions(@Param('id') id: string) {
+    @HttpCode(200)
+    @Post('transactions')
+    async findOneWalletWithTransactions(@Headers('user-wallet-id') id: string) {
         return this.walletService.findOneWalletWithTransactions(id);
     }
 
-    
+    // Pay from Wallet (REGULAR) to Wallet (MASTER)
+    @ApiTags('Wallet-Transaction')
+    @ApiResponse({ status: 201, description: 'Amount paid to Master Account' })
+    @ApiResponse({ status: 404, description: 'Wallet not found !' })
+    @ApiBody({ type: PayToMasterDto })
+    @Post('pay')
+    async payToMasterWallet(
+        @Headers('user-wallet-id') source_wallet_id: string,
+        @Headers('master-wallet-id') destination_wallet_id: string,
+        @Body() payToMasterDto: PayToMasterDto) {
+        return this.walletService.payToMasterWallet({ source_wallet_id, destination_wallet_id }, payToMasterDto);
+    }
+
+
 }

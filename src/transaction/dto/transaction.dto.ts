@@ -23,16 +23,20 @@ export class TransactionDto {
     @IsNotEmpty()
     txn_description: string;
 
-    @IsNotEmpty()
-    source_wallet?: WalletEntity;
+    // @IsNotEmpty()
+    // source_wallet?: WalletEntity;
+   
+    // @IsNotEmpty()
+    // destination_wallet: WalletEntity;
 
     @IsNotEmpty()
     bank?: BankEntity;
 
     @IsNotEmpty()
-    destination_wallet: WalletEntity;
+    txn_status: string;
 
     @IsNotEmpty()
-    txn_status: string;
+    wallet?: WalletEntity;
+ 
 
 }

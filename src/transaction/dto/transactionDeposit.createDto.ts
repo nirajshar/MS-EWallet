@@ -28,6 +28,6 @@ export class TransactionDepositCreateDto {
 
     @IsString()
     @IsNotEmpty()
-    destination_wallet_id: string;
+    destinationWallet: WalletEntity;
 
 }

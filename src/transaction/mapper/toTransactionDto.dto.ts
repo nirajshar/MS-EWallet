@@ -3,12 +3,11 @@ import { TransactionDto } from "../dto/transaction.dto";
 
 export const toTransactionDto = (data: TransactionEntity): TransactionDto => {
     
-    const { uuid, source_wallet, destination_wallet, amount, txn_id, txn_type, txn_status, txn_description, currency } = data;
+    const { uuid, amount, txn_id, txn_type, txn_status, txn_description, currency, wallet } = data;
     
     let transactionDto: TransactionDto = {
         uuid,
-        source_wallet,
-        destination_wallet,
+        wallet,
         amount,
         txn_id,
         txn_type,
