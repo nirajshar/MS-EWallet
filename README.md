@@ -20,18 +20,25 @@ EWallet (closed wallet) microservice for storing System (Master) & Wallet (Users
 
     A. Infrastructure Management Team
 	
-      - [ POST ]    - Register Wallet 						
-      - [ GET ]     - Get all Wallets [Limited Details]
-      - [ GET ]     - Get Wallet details by Wallet UUID 
-      - [ PUT ]     - Update Wallet details 
-      - [ PUT ]     - Block / Unblock Wallet 
-      - [ DELETE ]  - Delete Wallet [Hard] (Restrict Cascade)
-      
-    B. User
+      1: Wallet (CRUD)
+        - [ POST ]    - Register Wallet
+        - [ GET ]     - Get all Wallets [Limited Details]
+        - [ GET ]     - Get Wallet details by Wallet UUID 
+        - [ PUT ]     - Update Wallet details 
+        - [ PUT ]     - Block / Unblock Wallet 
+        - [ DELETE ]  - Delete Wallet [Hard] (Restrict Cascade)
 
-      - [ POST ]    - Debit from Wallet [ Owners Account ] [ Transfer: Regular to Master Account ] 
-      - [ POST ]    - Credit to Wallet  [ Owners Account ] [ Accept Payment via Payment Gateway, Virtual Account, UPI ]
-      - [ POST ]    - Check Balance by Wallet UUID [ Owners Account ]
+      2: Wallet Transactions        
+        - [ POST ]    - Get Wallet Transactions by Wallet UUID  
+        
+        
+    B. User
+      
+      1. Wallet (RU)
+        - [ POST ]      - Deposit (CREDIT) to Regular Wallet  [ Accept Payment via NEFT ]
+        - [ POST ]      - Get Balance                         [ OWN ]
+        - [ POST ]      - Check Transactions                  [ OWN ]
+        - [ POST ]      - Pay to Master Wallet                [ Transfer: Regular to Master Account ] 
 
 ## Installation
 
