@@ -10,7 +10,6 @@ import { WalletService } from 'src/wallet/wallet.service';
 import { WalletEntity } from 'src/wallet/entity/wallet.entity';
 import { UserEntity } from 'src/user/entity/user.entity';
 import { UserService } from 'src/user/user.service';
-import { WalletUpdateDto } from 'src/wallet/dto/wallet.updateDto.dto';
 
 @Injectable()
 export class SystemService {

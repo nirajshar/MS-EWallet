@@ -1,4 +1,3 @@
-import { ApiProperty } from "@nestjs/swagger";
 import { IsDecimal, IsNotEmpty, IsString } from "class-validator";
 import { WalletEntity } from "src/wallet/entity/wallet.entity";
 

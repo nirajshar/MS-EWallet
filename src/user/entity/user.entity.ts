@@ -1,4 +1,3 @@
-import { WalletEntity } from "src/wallet/entity/wallet.entity";
 import { Column, CreateDateColumn, Entity, Generated, JoinColumn, OneToOne, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
 
 @Entity('user')

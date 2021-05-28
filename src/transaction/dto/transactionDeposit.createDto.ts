@@ -1,6 +1,5 @@
 import { IsDecimal, IsNotEmpty, IsString } from "class-validator";
 import { WalletEntity } from "src/wallet/entity/wallet.entity";
-import { BankEntity } from "../entity/bank.entity";
 import { BankCreateDto } from "./bank.createDto.dto";
 
 

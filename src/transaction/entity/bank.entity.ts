@@ -1,7 +1,6 @@
 import { IsNotEmpty } from "class-validator";
 import { Column, CreateDateColumn, Entity, JoinColumn, OneToOne, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
 import { ExtendedColumnOptions } from "typeorm-encrypted";
-import { TransactionEntity } from "./transaction.entity";
 
 @Entity('bank') 
 export class BankEntity {

@@ -1,6 +1,5 @@
 import { WalletEntity } from "../entity/wallet.entity";
 import { WalletTransactionBankDto } from "../dto/walletTransactionBank.dto";
-import { WalletTransactionDto } from "../dto/wallet-transaction.dto";
 import { WalletDepositOutDto } from "../dto/walletDepositOutDto.dto";
 
 
