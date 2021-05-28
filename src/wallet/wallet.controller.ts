@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Headers, HttpCode, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, HttpCode, HttpStatus, Param, Post, Put, Res } from '@nestjs/common';
 import { ApiBody, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { DepositToUserDto } from './dto/depositToUserDto.dto';
 import { PayToMasterDto } from './dto/PayToMasterDto.dto';
@@ -66,11 +66,11 @@ export class WalletController {
     @ApiResponse({ status: 201, description: 'Transaction created successfully' })
     @ApiResponse({ status: 404, description: 'Wallet not found !' })
     @ApiBody({ type: DepositToUserDto })
-    @Post('deposit')
+    @Post('deposit/neft')
     async depositToUserWallet(
         @Headers('user-wallet-id') destination_wallet_id: string,
         @Body() depositToUserDto: DepositToUserDto) {
-        return this.walletService.depositToUserWallet(destination_wallet_id, depositToUserDto);
+        return this.walletService.depositNEFT(destination_wallet_id, depositToUserDto);
     }
 
     // Get Wallet with All Transactions
@@ -79,7 +79,7 @@ export class WalletController {
     @ApiResponse({ status: 404, description: 'Wallet not found' })
     @HttpCode(200)
     @Post('transactions')
-    async findOneWalletWithTransactions(@Headers('user-wallet-id') id: string) {
+    async findOneWalletWithTransactions(@Headers('wallet-id') id: string) {
         return this.walletService.findOneWalletWithTransactions(id);
     }
 
@@ -90,10 +90,9 @@ export class WalletController {
     @ApiBody({ type: PayToMasterDto })
     @Post('pay')
     async payToMasterWallet(
-        @Headers('user-wallet-id') source_wallet_id: string,
-        @Headers('master-wallet-id') destination_wallet_id: string,
+        @Headers('user-wallet-id') user_wallet_id: string,
         @Body() payToMasterDto: PayToMasterDto) {
-        return this.walletService.payToMasterWallet({ source_wallet_id, destination_wallet_id }, payToMasterDto);
+        return this.walletService.payToMasterWallet({ user_wallet_id }, payToMasterDto);
     }
 
 
