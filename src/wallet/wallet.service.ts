@@ -3,14 +3,15 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { SystemEntity } from 'src/system/entity/system.entity';
 import { UserService } from 'src/user/user.service';
 import { Connection, Repository } from 'typeorm';
-import { WalletCreateDto } from './dto/wallet.createDto.dto';
-import { WalletUpdateDto } from './dto/wallet.updateDto.dto';
+import { WalletCreateDto } from './dto/wallet/wallet.createDto.dto';
+import { WalletUpdateDto } from './dto/wallet/wallet.updateDto.dto';
 import { WalletEntity } from './entity/wallet.entity';
 import { toWalletDto } from './mapper/toWalletDto.dto';
 import { TransactionService } from 'src/transaction/transaction.service';
-import { DepositToUserDto } from './dto/depositToUserDto.dto';
+import { DepositToUserDto } from './dto/wallet-transaction/depositToUserDto.dto';
 import { toWalletTransactionBankDto } from './mapper/toWalletTransactionBankDto.dto';
-import { PayToMasterDto } from './dto/PayToMasterDto.dto';
+import { PayToMasterDto } from './dto/wallet-transaction/payToMasterDto.dto';
+import { RefundTransactionDto } from './dto/wallet-transaction/refundTransactionDto.dto';
 
 
 @Injectable()
@@ -177,7 +178,7 @@ export class WalletService {
         };
     }
 
-    // Private function
+    // Private functions (START) ----------------------------------------------------------
     private _zeroPad(num, numZeros = 16) {
         var n = Math.abs(num);
         var zeros = Math.max(0, numZeros - Math.floor(n).toString().length);
@@ -189,85 +190,7 @@ export class WalletService {
         return zeroString + n;
     }
 
-
-    // Deposit [NEFT] from Bank (USER) to Wallet (REGULAR) 
-    async depositNEFT(destination_wallet_id: string, depositToUserDto: DepositToUserDto) {
-
-        const { amount, txn_description } = depositToUserDto;
-        const { bank_name, bank_ifsc, account_holder_name, account_no, utr_no } = depositToUserDto.bank;
-
-        if (Math.sign(amount) !== 1) {
-            throw new HttpException({
-                status: HttpStatus.BAD_REQUEST,
-                message: `Amount Invalid !`
-            }, HttpStatus.BAD_REQUEST);
-        }
-
-        let transaction: any;
-
-        const destinationWallet = await this.walletRepository.findOne({ where: { id: destination_wallet_id, wallet_user_type: 'REGULAR' } });
-
-        if (!destinationWallet) {
-            throw new HttpException({
-                status: HttpStatus.CONFLICT,
-                message: `Wallet not found !`
-            }, HttpStatus.CONFLICT);
-        }
-
-        transaction = await this.transactionService.depositToRegularTransaction({
-            currency: destinationWallet.currency,
-            amount: Math.abs(amount),
-            txn_type: 'CREDIT',
-            txn_description: txn_description,
-            destinationWallet: destinationWallet,
-            bank: {
-                bank_name,
-                bank_ifsc,
-                account_holder_name,
-                account_no,
-                utr_no
-            }
-        });
-
-        destinationWallet.balance = parseFloat(destinationWallet.balance.toFixed(2)) + parseFloat(amount.toFixed(2));
-        await this.walletRepository.save(destinationWallet);
-        await this.transactionService.updateTransactionStatus(transaction.data.transaction.uuid, 'SUCCESS');
-
-        return {
-            status: 'success',
-            message: 'Amount deposited in wallet successfully',
-            data: {
-                UTR: transaction.data.UTR
-            }
-        }
-
-    }
-
-    // FindOne Wallet with All Transactions
-    async findOneWalletWithTransactions(id: string) {
-
-        const walletTransactionBank = await this.walletRepository.findOne({
-            where: { id },
-            relations: ['user', 'system', 'transactions', 'transactions.bank']
-        })
-
-        if (!walletTransactionBank) {
-            throw new HttpException({
-                status: HttpStatus.NOT_FOUND,
-                message: 'Wallet not found'
-            }, HttpStatus.NOT_FOUND)
-        }
-
-        return toWalletTransactionBankDto(walletTransactionBank);
-    }
-
-    // Pay from Wallet (REGULAR) to Wallet (MASTER)   
-    async payToMasterWallet(accounts, payToMasterDto: PayToMasterDto) {
-
-        const { user_wallet_id } = accounts;
-        const { amount, txn_description } = payToMasterDto;
-
-        let transaction: any;
+    private async _getUserAndMasterAccount(user_wallet_id: string) {
 
         const userWallet = await this.walletRepository.findOne({
             where: {
@@ -321,6 +244,97 @@ export class WalletService {
             }, HttpStatus.FORBIDDEN);
         }
 
+        return {
+            userWallet,
+            masterWallet
+        }
+
+
+    }
+    // Private functions (END) ------------------------------------------------------------
+
+
+
+    // Deposit [NEFT] from Bank (USER) to Wallet (REGULAR) 
+    async depositNEFT(user_wallet_id: string, depositToUserDto: DepositToUserDto) {
+
+        const { amount, txn_description } = depositToUserDto;
+        const { bank_name, bank_ifsc, account_holder_name, account_no, utr_no } = depositToUserDto.bank;
+
+        if (Math.sign(amount) !== 1) {
+            throw new HttpException({
+                status: HttpStatus.BAD_REQUEST,
+                message: `Amount Invalid !`
+            }, HttpStatus.BAD_REQUEST);
+        }
+
+        let transaction: any;
+
+        const userWallet = await this.walletRepository.findOne({ where: { id: user_wallet_id, wallet_user_type: 'REGULAR' } });
+
+        if (!userWallet) {
+            throw new HttpException({
+                status: HttpStatus.CONFLICT,
+                message: `Wallet not found !`
+            }, HttpStatus.CONFLICT);
+        }
+
+        transaction = await this.transactionService.depositToRegularTransaction({
+            currency: userWallet.currency,
+            amount: Math.abs(amount),
+            txn_type: 'CREDIT',
+            txn_description: 'NEFT : ' +  txn_description,
+            userWallet: userWallet,
+            bank: {
+                bank_name,
+                bank_ifsc,
+                account_holder_name,
+                account_no,
+                utr_no
+            }
+        });
+
+        userWallet.balance = parseFloat(userWallet.balance.toFixed(2)) + parseFloat(amount.toFixed(2));
+        await this.walletRepository.save(userWallet);
+        await this.transactionService.updateTransactionStatus(transaction.data.transaction.uuid, 'SUCCESS');
+
+        return {
+            status: 'success',
+            message: 'Amount deposited in wallet successfully',
+            data: {
+                UTR: transaction.data.UTR
+            }
+        }
+
+    }
+
+    // FindOne Wallet with All Transactions
+    async findOneWalletWithTransactions(id: string) {
+
+        const walletTransactionBank = await this.walletRepository.findOne({
+            where: { id },
+            relations: ['user', 'system', 'transactions', 'transactions.bank']
+        })
+
+        if (!walletTransactionBank) {
+            throw new HttpException({
+                status: HttpStatus.NOT_FOUND,
+                message: 'Wallet not found'
+            }, HttpStatus.NOT_FOUND)
+        }
+
+        return toWalletTransactionBankDto(walletTransactionBank);
+    }
+
+    // Pay from Wallet (REGULAR) to Wallet (MASTER)   
+    async payToMasterWallet(user_wallet_id: string, payToMasterDto: PayToMasterDto) {
+
+        const { amount, txn_description } = payToMasterDto;
+
+        let transaction: any;
+
+        const { userWallet, masterWallet } = await this._getUserAndMasterAccount(user_wallet_id);
+
         if (userWallet.balance < amount) {
             throw new HttpException({
                 status: HttpStatus.CONFLICT,
@@ -331,9 +345,9 @@ export class WalletService {
         transaction = await this.transactionService.payToMasterTransaction({
             currency: userWallet.currency,
             amount: amount,
-            txn_description: txn_description,
-            sourceWallet: userWallet,
-            destinationWallet: masterWallet
+            txn_description: 'Pay-Master-Account : ' +  txn_description,
+            userWallet: userWallet,
+            masterWallet: masterWallet
         });
 
         userWallet.balance = parseFloat(userWallet.balance.toFixed(2)) - parseFloat(amount.toFixed(2));
@@ -354,7 +368,7 @@ export class WalletService {
 
         const response = {
             status: paymentStatus ? 'success' : 'failure',
-            message: paymentStatus ? 'Amount paid to Master account !' : 'Failed to Pay !',
+            message: paymentStatus ? 'Amount paid to Master account successfully !' : 'Failed to Pay !',
             data: {
                 UTR: transaction.data.UTR
             }
@@ -365,6 +379,66 @@ export class WalletService {
         } else {
             return response;
         }
+
+    }
+
+    // Generate Refund-Wallet from Wallet (MASTER) to Wallet (REGULAR)
+    async refundTransaction(refundTransactionDto: RefundTransactionDto) {
+
+        const { UTR, user_wallet_id } = refundTransactionDto;
+
+        let transaction: any;
+
+        const { userWallet, masterWallet } = await this._getUserAndMasterAccount(user_wallet_id);
+
+        const transactionsToRefund = await this.transactionService.getTransactionFromUTRWallet(UTR, userWallet.id, masterWallet.id);
+
+        if (masterWallet.balance < transactionsToRefund.debitTransaction.amount) {
+            throw new HttpException({
+                status: HttpStatus.CONFLICT,
+                message: `Master Wallet balance insufficient !`
+            }, HttpStatus.CONFLICT);
+        }
+
+        transaction = await this.transactionService.refundTransaction({
+            currency: userWallet.currency,
+            amount: transactionsToRefund.debitTransaction.amount,
+            txn_description: 'Refund-Wallet : ' + UTR,
+            userWallet: userWallet,
+            masterWallet: masterWallet
+        });
+
+        masterWallet.balance = parseFloat(masterWallet.balance.toFixed(2)) - parseFloat(Number(transactionsToRefund.debitTransaction.amount).toFixed(2));
+        userWallet.balance = parseFloat(userWallet.balance.toFixed(2)) + parseFloat(Number(transactionsToRefund.debitTransaction.amount).toFixed(2));
+
+        const paymentStatus = await this.connection.transaction(async manager => {
+            await this.walletRepository.manager.save(masterWallet);
+            await this.walletRepository.manager.save(userWallet);
+        }).then(async () => {
+            await this.transactionService.updateTransactionStatus(transaction.data.debitTransaction.uuid , 'SUCCESS');
+            await this.transactionService.updateTransactionStatus(transaction.data.creditTransaction.uuid, 'SUCCESS');
+            await this.transactionService.updateUTRRefundStatus(UTR, true);
+            return true;
+        }).catch(async (err) => {
+            await this.transactionService.updateTransactionStatus(transaction.data.debitTransaction.uuid, 'FAILED');
+            await this.transactionService.updateTransactionStatus(transaction.data.creditTransaction.uuid, 'FAILED');
+            return false;
+        });
+
+        const response = {
+            status: paymentStatus ? 'success' : 'failure',
+            message: paymentStatus ? 'Amount Refund to User account successfully !' : 'Failed to Refund !',
+            data: {
+                UTR: transaction.data.UTR
+            }
+        }
+
+        if (response.status !== 'success') {
+            throw new HttpException(response, HttpStatus.CONFLICT);
+        } else {
+            return response;
+        }
+
 
     }
 

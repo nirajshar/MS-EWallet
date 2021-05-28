@@ -1,5 +1,5 @@
 import { IsNotEmpty, IsOptional } from "class-validator";
-import { WalletTransactionDto } from "../dto/wallet-transaction.dto";
+import { WalletTransactionDto } from "./wallet-transaction.dto";
 
 export class WalletTransactionBankDto {
 

@@ -1,6 +1,6 @@
 import { WalletEntity } from "../entity/wallet.entity";
-import { WalletTransactionBankDto } from "../dto/walletTransactionBank.dto";
-import { WalletDepositOutDto } from "../dto/walletDepositOutDto.dto";
+import { WalletTransactionBankDto } from "../dto/wallet-transaction/walletTransactionBank.dto";
+import { WalletDepositOutDto } from "../dto/wallet-transaction/walletDepositOutDto.dto";
 
 
 export const toWalletTransactionBankDto = (data: WalletEntity): WalletTransactionBankDto => {

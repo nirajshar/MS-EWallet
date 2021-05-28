@@ -1,6 +1,6 @@
 import { ApiProperty } from "@nestjs/swagger";
 import { IsBoolean, IsObject, IsOptional, IsString } from "class-validator";
-import { UserUpdateDto } from "./user.updateDto.dto";
+import { UserUpdateDto } from "../user/user.updateDto.dto";
 
 
 export class WalletUpdateDto {

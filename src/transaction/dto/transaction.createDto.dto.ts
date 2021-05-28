@@ -18,10 +18,10 @@ export class TransactionCreateDto {
 
     @IsString()
     @IsNotEmpty()
-    sourceWallet: WalletEntity;
+    userWallet: WalletEntity;
 
     @IsString()
     @IsNotEmpty()
-    destinationWallet: WalletEntity;
+    masterWallet: WalletEntity;
 
 }

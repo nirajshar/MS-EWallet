@@ -1,9 +1,10 @@
 import { Body, Controller, Delete, Get, Headers, HttpCode, HttpStatus, Param, Post, Put, Res } from '@nestjs/common';
 import { ApiBody, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { DepositToUserDto } from './dto/depositToUserDto.dto';
-import { PayToMasterDto } from './dto/PayToMasterDto.dto';
-import { WalletCreateDto } from './dto/wallet.createDto.dto';
-import { WalletUpdateDto } from './dto/wallet.updateDto.dto';
+import { DepositToUserDto } from './dto/wallet-transaction/depositToUserDto.dto';
+import { PayToMasterDto } from './dto/wallet-transaction/payToMasterDto.dto';
+import { RefundTransactionDto } from './dto/wallet-transaction/refundTransactionDto.dto';
+import { WalletCreateDto } from './dto/wallet/wallet.createDto.dto';
+import { WalletUpdateDto } from './dto/wallet/wallet.updateDto.dto';
 import { WalletService } from './wallet.service';
 
 @Controller('wallet')
@@ -61,7 +62,7 @@ export class WalletController {
 
     // Wallet Transactions ---------------------------------------------------------
 
-    // Deposit Amount to Wallet (REGULAR) from BANK
+    // Deposit Amount to Wallet (REGULAR) from BANK : INFRA-MGMT Access onlt
     @ApiTags('Wallet-Transaction')
     @ApiResponse({ status: 201, description: 'Transaction created successfully' })
     @ApiResponse({ status: 404, description: 'Wallet not found !' })
@@ -92,7 +93,17 @@ export class WalletController {
     async payToMasterWallet(
         @Headers('user-wallet-id') user_wallet_id: string,
         @Body() payToMasterDto: PayToMasterDto) {
-        return this.walletService.payToMasterWallet({ user_wallet_id }, payToMasterDto);
+        return this.walletService.payToMasterWallet(user_wallet_id, payToMasterDto);
+    }
+
+    // Refund from Wallet (MASTER) to Wallet (REGULAR) : INFRA-MGMT Access onlt
+    @ApiTags('Wallet-Transaction')
+    @ApiResponse({ status: 201, description: 'Amount paid to Master Account' })
+    @ApiResponse({ status: 404, description: 'Wallet not found !' })
+    @ApiBody({ type: RefundTransactionDto })
+    @Post('refund')
+    async refundTransaction(@Body() refundTransaction: RefundTransactionDto) {
+        return this.walletService.refundTransaction(refundTransaction);
     }
 
 

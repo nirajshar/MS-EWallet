@@ -8,6 +8,7 @@ import { toTransactionDto } from './mapper/toTransactionDto.dto';
 import * as crypto from 'crypto';
 import { TransactionDepositCreateDto } from './dto/transactionDeposit.createDto';
 import { BankEntity } from './entity/bank.entity';
+import { AccountingCreateDto } from './dto/accounting.createDto.dto';
 
 
 
@@ -65,7 +66,7 @@ export class TransactionService {
     async depositToRegularTransaction(transactionDepositCreateDto: TransactionDepositCreateDto): Promise<object> {
 
         const { currency, amount, txn_type, txn_description } = transactionDepositCreateDto;
-        const { destinationWallet } = transactionDepositCreateDto;
+        const { userWallet } = transactionDepositCreateDto;
         const { bank_name, bank_ifsc, account_holder_name, account_no, utr_no } = transactionDepositCreateDto.bank;
 
         let uuid, transactionCreated, bankCreated: any;
@@ -111,7 +112,7 @@ export class TransactionService {
             txn_type,
             txn_description,
             bank: bankCreated,
-            wallet: destinationWallet,
+            wallet: userWallet,
             UTR: UTR
         });
 
@@ -136,12 +137,27 @@ export class TransactionService {
 
         const UTR = crypto.randomBytes(20).toString('hex').toUpperCase();
 
-        const debitTransaction = await this._debit(transactionCreateDto, UTR);
-        const creditTransaction = await this._credit(transactionCreateDto, UTR);
+        const debitTransaction = await this._createTransaction({
+            currency: transactionCreateDto.currency,
+            amount: transactionCreateDto.amount,
+            txn_description: transactionCreateDto.txn_description,
+            wallet: transactionCreateDto.userWallet,
+            UTR: UTR,
+            txn_type: 'DEBIT'
+        });
+
+        const creditTransaction = await this._createTransaction({
+            currency: transactionCreateDto.currency,
+            amount: transactionCreateDto.amount,
+            txn_description: transactionCreateDto.txn_description,
+            wallet: transactionCreateDto.masterWallet,
+            UTR,
+            txn_type: 'CREDIT'
+        });
 
         return {
             status: 'success',
-            message: 'Amount paid to master account from source account',
+            message: 'Amount paid to master account from user account',
             data: {
                 debitTransaction,
                 creditTransaction,
@@ -151,53 +167,132 @@ export class TransactionService {
 
     }
 
+    // Private methods (START) ---------------------------------------------------------
+    private async _createTransaction(accountingCreateDto: AccountingCreateDto): Promise<object> {
 
-    private async _debit(transactionCreateDto: TransactionCreateDto, UTR: string): Promise<object> {
+        const { currency, amount, txn_description, txn_type, UTR } = accountingCreateDto;
+        const { wallet } = accountingCreateDto
 
-        const { currency, amount, txn_description } = transactionCreateDto;
-        const { sourceWallet } = transactionCreateDto
+        const Txn = await this._getUniqueTransaction();
 
-        const debitTxn = await this._getUniqueTransaction();
-
-        const debitTransaction: TransactionEntity = await this.transactionRepository.create({
-            uuid: debitTxn.gen_uuid,
-            txn_id: debitTxn.txn_id,
+        const transaction: TransactionEntity = await this.transactionRepository.create({
+            uuid: Txn.gen_uuid,
+            txn_id: Txn.txn_id,
             currency,
             amount,
-            txn_type: 'DEBIT',
+            txn_type: txn_type,
             txn_description,
-            wallet: sourceWallet,
+            wallet: wallet,
             UTR: UTR
         });
 
-        const debitTransactionCreated = await this.transactionRepository.save(debitTransaction);
-
-        return debitTransactionCreated
+        const transactionCreated = await this.transactionRepository.save(transaction);
+        
+        return transactionCreated
     }
+    // Private methods (END) -----------------------------------------------------------
 
+    async getTransactionFromUTRWallet(UTR: string, user_wallet_id: string, master_wallet_id: string) {
 
-    private async _credit(transactionCreateDto: TransactionCreateDto, UTR: string): Promise<object> {
+        if (UTR === '' || UTR === undefined || UTR === null) {
+            throw new HttpException({
+                status: HttpStatus.BAD_REQUEST,
+                message: `UTR NO required !`
+            }, HttpStatus.BAD_REQUEST);
+        }
 
-        const { currency, amount, txn_description } = transactionCreateDto;
-        const { destinationWallet } = transactionCreateDto
-
-        const creditTxn = await this._getUniqueTransaction();
-
-        const creditTransaction: TransactionEntity = await this.transactionRepository.create({
-            uuid: creditTxn.gen_uuid,
-            txn_id: creditTxn.txn_id,
-            currency,
-            amount,
-            txn_type: 'CREDIT',
-            txn_description,
-            wallet: destinationWallet,
-            UTR: UTR
+        const debitTransaction = await this.transactionRepository.findOne({
+            where: {
+                UTR: UTR,
+                txn_type: 'DEBIT',
+                wallet: user_wallet_id
+            }
         });
 
-        const creditTransactionCreated = await this.transactionRepository.save(creditTransaction);
+        if (!debitTransaction) {
+            throw new HttpException({
+                status: HttpStatus.NOT_FOUND,
+                message: `Debit Transaction not found !`
+            }, HttpStatus.NOT_FOUND);
+        }
 
-        return creditTransactionCreated;
+        if (debitTransaction.is_refund) {
+            throw new HttpException({
+                status: HttpStatus.BAD_REQUEST,
+                message: `Transaction already refunded !`
+            }, HttpStatus.BAD_REQUEST);
+        }
+
+        const creditTransaction = await this.transactionRepository.findOne({
+            where: {
+                UTR: UTR,
+                txn_type: 'CREDIT',
+                wallet: master_wallet_id
+            }
+        });
+
+        if (!debitTransaction) {
+            throw new HttpException({
+                status: HttpStatus.NOT_FOUND,
+                message: `Credit Transaction not found !`
+            }, HttpStatus.NOT_FOUND);
+        }
+
+
+        if (debitTransaction.amount !== creditTransaction.amount) {
+            if (!debitTransaction) {
+                throw new HttpException({
+                    status: HttpStatus.CONFLICT,
+                    message: `Debit/Credit Transaction amount mismatch !`
+                }, HttpStatus.CONFLICT);
+            }
+        }
+
+        return {
+            debitTransaction,
+            creditTransaction
+        }
+
     }
+    
+    async updateUTRRefundStatus(UTR: string, is_refund: boolean): Promise<void> {
+        await this.transactionRepository.update({ UTR: UTR }, { is_refund: is_refund });
+    }
+
+    async refundTransaction(transactionCreateDto: TransactionCreateDto) {
+
+        const UTR = crypto.randomBytes(20).toString('hex').toUpperCase();
+
+        const debitTransaction = await this._createTransaction({
+            currency: transactionCreateDto.currency,
+            amount: transactionCreateDto.amount,
+            txn_description: transactionCreateDto.txn_description,
+            wallet: transactionCreateDto.masterWallet,
+            UTR: UTR,
+            txn_type: 'REFUND:DEBIT'
+        });
+
+        const creditTransaction = await this._createTransaction({
+            currency: transactionCreateDto.currency,
+            amount: transactionCreateDto.amount,
+            txn_description: transactionCreateDto.txn_description,
+            wallet: transactionCreateDto.userWallet,
+            UTR,
+            txn_type: 'REFUND:CREDIT'
+        });
+
+        return {
+            status: 'success',
+            message: 'Amount paid to user account from master account',
+            data: {
+                debitTransaction,
+                creditTransaction,
+                UTR
+            }
+        }
+
+    }
+
 
 
 }

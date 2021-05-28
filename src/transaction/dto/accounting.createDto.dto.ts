@@ -1,10 +1,9 @@
-import { IsDecimal, IsNotEmpty, IsString } from "class-validator";
+import { IsDecimal, IsNotEmpty, IsObject, IsString } from "class-validator";
 import { WalletEntity } from "src/wallet/entity/wallet.entity";
-import { BankCreateDto } from "./bank.createDto.dto";
 
 
-export class TransactionDepositCreateDto {  
-
+export class AccountingCreateDto {    
+    
     @IsString()
     @IsNotEmpty()
     currency: string;
@@ -15,18 +14,18 @@ export class TransactionDepositCreateDto {
 
     @IsString()
     @IsNotEmpty()
-    txn_type: string;
-
-    @IsString()
-    @IsNotEmpty()
     txn_description: string;
 
-    @IsString()
+    @IsObject()
     @IsNotEmpty()
-    bank: BankCreateDto;
+    wallet: WalletEntity;
 
     @IsString()
     @IsNotEmpty()
-    userWallet: WalletEntity;
+    UTR: string;
+
+    @IsString()
+    @IsNotEmpty()
+    txn_type: string;
 
 }

@@ -1,6 +1,6 @@
 import { ApiProperty } from "@nestjs/swagger";
 import { IsNotEmpty } from "class-validator";
-import { UserCreateDto } from "./user.createDto.dto";
+import { UserCreateDto } from "../user/user.createDto.dto";
 
 
 export class WalletCreateDto {

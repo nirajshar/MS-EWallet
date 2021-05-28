@@ -32,7 +32,7 @@ export class TransactionEntity {
 
     @Column({
         type: "enum",
-        enum: ['CREDIT', 'DEBIT', 'REFUND'],
+        enum: ['CREDIT', 'DEBIT', 'REFUND:DEBIT', 'REFUND:CREDIT', 'WITHDRAW'],
         default: null
     })
     public txn_type: string;
@@ -70,11 +70,14 @@ export class TransactionEntity {
     @JoinColumn({ name: 'wallet_id', referencedColumnName: 'id' })
     wallet: WalletEntity;
 
-
     @Column({
         type: 'varchar',
         nullable: false
     })
     UTR: string;
 
+    @Column({
+        default: 0
+    })
+    is_refund: boolean;
 }
