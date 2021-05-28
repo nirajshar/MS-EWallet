@@ -3,7 +3,9 @@
 EWallet (closed wallet) microservice for storing System (Master) & Wallet (Users)
 
 1. System CRUD
-1. Wallet CRUD
+2. Wallet CRUD
+3. User CRUD
+4. Transactions CR
 
 ## Rest endpoints (JSON)
 
@@ -21,20 +23,23 @@ EWallet (closed wallet) microservice for storing System (Master) & Wallet (Users
     A. Infrastructure Management Team
 	
       1: Wallet (CRUD)
-        - [ POST ]    - Register Wallet
-        - [ GET ]     - Get all Wallets [Limited Details]
-        - [ GET ]     - Get Wallet details by Wallet UUID 
-        - [ PUT ]     - Update Wallet details 
-        - [ PUT ]     - Block / Unblock Wallet 
-        - [ DELETE ]  - Delete Wallet [Hard] (Restrict Cascade)
+        - [ POST ]      - Register Wallet
+        - [ GET ]       - Get all Wallets [Limited Details]
+        - [ GET ]       - Get Wallet details by Wallet UUID 
+        - [ PUT ]       - Update Wallet details 
+        - [ PUT ]       - Block / Unblock Wallet 
+        - [ DELETE ]    - Delete Wallet [Hard] (Restrict Cascade)
 
-      2: Wallet Transactions        
-        - [ POST ]    - Get Wallet Transactions by Wallet UUID  
+      2: Wallet Transactions
+        - [ POST ]      - Get Wallet Transactions by Wallet UUID  
         
         
     B. User
       
       1. Wallet (RU)
+        - [ GET ]       - Get Wallet Balance [ OWN ]
+
+      2: Wallet Transactions
         - [ POST ]      - Deposit (CREDIT) to Regular Wallet  [ Accept Payment via NEFT ]
         - [ POST ]      - Get Balance                         [ OWN ]
         - [ POST ]      - Check Transactions                  [ OWN ]
