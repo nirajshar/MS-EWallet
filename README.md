@@ -31,6 +31,7 @@ EWallet (closed wallet) microservice for storing System (Master) & Wallet (Users
         - [ DELETE ]    - Delete Wallet [Hard] (Restrict Cascade)
 
       2: Wallet Transactions
+        - [ POST ]      - Deposit (CREDIT) to Regular Wallet      [ Accept Payment via NEFT ]
         - [ POST ]      - Get Wallet Transactions by Wallet UUID  
         
         
@@ -39,11 +40,10 @@ EWallet (closed wallet) microservice for storing System (Master) & Wallet (Users
       1. Wallet (RU)
         - [ GET ]       - Get Wallet Balance [ OWN ]
 
-      2: Wallet Transactions
-        - [ POST ]      - Deposit (CREDIT) to Regular Wallet  [ Accept Payment via NEFT ]
-        - [ POST ]      - Get Balance                         [ OWN ]
-        - [ POST ]      - Check Transactions                  [ OWN ]
-        - [ POST ]      - Pay to Master Wallet                [ Transfer: Regular to Master Account ] 
+      2: Wallet Transactions        
+        - [ POST ]      - Get Balance                   [ OWN ]
+        - [ POST ]      - Check Transactions            [ OWN ]
+        - [ POST ]      - Pay (DEBIT) to Master Wallet  [ Transfer: Regular to Master Account ] 
 
 ## Installation
 
