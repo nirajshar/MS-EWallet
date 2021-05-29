@@ -1,5 +1,6 @@
-import { IsDecimal, IsNotEmpty, IsObject, IsString } from "class-validator";
+import { IsDecimal, IsNotEmpty, IsObject, IsOptional, IsString } from "class-validator";
 import { WalletEntity } from "src/wallet/entity/wallet.entity";
+import { BankEntity } from "../entity/bank.entity";
 
 
 export class AccountingCreateDto {    
@@ -27,5 +28,9 @@ export class AccountingCreateDto {
     @IsString()
     @IsNotEmpty()
     txn_type: string;
+
+    @IsObject()
+    @IsOptional()
+    bank?: BankEntity;
 
 }

@@ -1,26 +1,26 @@
 import { ApiProperty } from "@nestjs/swagger";
 import { IsNotEmpty, IsOptional } from "class-validator";
 
-export class BankCreateDto {
+export class UpdateWithdrawDto {
 
     @ApiProperty()
     @IsNotEmpty()
-    bank_name: string;
-   
-    @ApiProperty()
-    @IsNotEmpty()
-    bank_ifsc: string;
+    user_wallet_id: string;
 
     @ApiProperty()
     @IsNotEmpty()
-    account_holder_name: string;
+    UTR: string;
 
     @ApiProperty()
     @IsNotEmpty()
-    account_no: string; 
+    txn_status: string;
 
     @ApiProperty()
     @IsNotEmpty()
-    utr_no?: string; 
+    txn_description: string;
+
+    @ApiProperty()
+    @IsOptional()
+    bank_utr_no?: string;
 
 }

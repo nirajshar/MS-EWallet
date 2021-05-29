@@ -1,6 +1,6 @@
 import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Connection, Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { TransactionCreateDto } from './dto/transaction.createDto.dto';
 import { TransactionEntity } from './entity/transaction.entity';
@@ -9,6 +9,9 @@ import * as crypto from 'crypto';
 import { TransactionDepositCreateDto } from './dto/transactionDeposit.createDto';
 import { BankEntity } from './entity/bank.entity';
 import { AccountingCreateDto } from './dto/accounting.createDto.dto';
+import { WithdrawCreateTransactionDto } from './dto/withdraw.createDto.dto';
+import { BankCreateDto } from './dto/bank.createDto.dto';
+import { UpdateWithdrawDto } from 'src/wallet/dto/wallet-transaction/updateWithdrawDto.dto';
 
 
 
@@ -18,6 +21,7 @@ export class TransactionService {
     constructor(
         @InjectRepository(TransactionEntity) private readonly transactionRepository: Repository<TransactionEntity>,
         @InjectRepository(BankEntity) private readonly bankRepository: Repository<BankEntity>,
+        private readonly connection: Connection
     ) { }
 
     private readonly logger = new Logger(TransactionService.name);
@@ -67,9 +71,7 @@ export class TransactionService {
 
         const { currency, amount, txn_type, txn_description } = transactionDepositCreateDto;
         const { userWallet } = transactionDepositCreateDto;
-        const { bank_name, bank_ifsc, account_holder_name, account_no, utr_no } = transactionDepositCreateDto.bank;
-
-        let uuid, transactionCreated, bankCreated: any;
+        const { utr_no } = transactionDepositCreateDto.bank;
 
         if (utr_no === '' || utr_no === undefined || utr_no === null) {
             throw new HttpException({
@@ -87,26 +89,11 @@ export class TransactionService {
             }, HttpStatus.CONFLICT);
         }
 
-        uuid = await uuidv4()
-
-        const { gen_uuid, txn_id } = await this._getUniqueTransaction();
-
-        const bankCreatOne = await this.bankRepository.create({
-            uuid: uuid,
-            bank_name: bank_name,
-            bank_ifsc: bank_ifsc,
-            account_holder_name: account_holder_name,
-            account_no: account_no,
-            utr_no: utr_no
-        })
-
-        bankCreated = await this.bankRepository.save(bankCreatOne);
+        const bankCreated: BankEntity = await this._createBank(transactionDepositCreateDto.bank)
 
         const UTR = crypto.randomBytes(20).toString('hex').toUpperCase();
 
-        const transaction: TransactionEntity = await this.transactionRepository.create({
-            uuid: gen_uuid,
-            txn_id,
+        const transactionCreated = await this._createTransaction({
             currency,
             amount,
             txn_type,
@@ -115,8 +102,6 @@ export class TransactionService {
             wallet: userWallet,
             UTR: UTR
         });
-
-        transactionCreated = await this.transactionRepository.save(transaction);
 
         return {
             status: 'success',
@@ -172,6 +157,7 @@ export class TransactionService {
 
         const { currency, amount, txn_description, txn_type, UTR } = accountingCreateDto;
         const { wallet } = accountingCreateDto
+        const { bank } = accountingCreateDto
 
         const Txn = await this._getUniqueTransaction();
 
@@ -182,16 +168,36 @@ export class TransactionService {
             amount,
             txn_type: txn_type,
             txn_description,
+            bank: bank ? bank : null,
             wallet: wallet,
             UTR: UTR
         });
 
         const transactionCreated = await this.transactionRepository.save(transaction);
-        
+
         return transactionCreated
+    }
+
+    private async _createBank(bankCreateDto: BankCreateDto) {
+
+        const { bank_name, bank_ifsc, account_holder_name, account_no, utr_no } = bankCreateDto;
+
+        const uuid = await uuidv4()
+        const bankCreatOne = await this.bankRepository.create({
+            uuid: uuid,
+            bank_name: bank_name,
+            bank_ifsc: bank_ifsc,
+            account_holder_name: account_holder_name,
+            account_no: account_no,
+            utr_no: utr_no !== '' ? utr_no : null
+        })
+        const bankCreated = await this.bankRepository.save(bankCreatOne);
+
+        return bankCreated;
     }
     // Private methods (END) -----------------------------------------------------------
 
+    // Functions to be strictly used in Wallet Service (START) -------------------------
     async getTransactionFromUTRWallet(UTR: string, user_wallet_id: string, master_wallet_id: string) {
 
         if (UTR === '' || UTR === undefined || UTR === null) {
@@ -254,10 +260,12 @@ export class TransactionService {
         }
 
     }
-    
+
     async updateUTRRefundStatus(UTR: string, is_refund: boolean): Promise<void> {
         await this.transactionRepository.update({ UTR: UTR }, { is_refund: is_refund });
     }
+    // Functions to be strictly used in Wallet Service (END) ---------------------------
+
 
     async refundTransaction(transactionCreateDto: TransactionCreateDto) {
 
@@ -293,6 +301,136 @@ export class TransactionService {
 
     }
 
+    async withdrawTransaction(withdrawCreateTransactionDto: WithdrawCreateTransactionDto) {
+
+        const { currency, amount, txn_description } = withdrawCreateTransactionDto;
+        const { userWallet } = withdrawCreateTransactionDto;
+
+        const bankCreated: BankEntity = await this._createBank(withdrawCreateTransactionDto.bank)
+
+        const UTR = crypto.randomBytes(20).toString('hex').toUpperCase();
+
+        const transactionCreated = await this._createTransaction({
+            currency,
+            amount,
+            txn_type: 'WITHDRAW:DEBIT',
+            txn_description,
+            bank: bankCreated,
+            wallet: userWallet,
+            UTR: UTR
+        });
+
+        return {
+            status: 'success',
+            message: 'Transaction created successfully',
+            data: {
+                transaction: transactionCreated
+            }
+        }
+    }
+
+    async getTransactionForApproval(user_wallet_id: string, UTR: string, txn_status: string) {
+
+        if (UTR === '' || UTR === undefined || UTR === null) {
+            throw new HttpException({
+                status: HttpStatus.BAD_REQUEST,
+                message: `UTR NO required !`
+            }, HttpStatus.BAD_REQUEST);
+        }
+
+        const transaction = await this.transactionRepository.findOne({
+            where: {
+                UTR: UTR,
+                wallet: user_wallet_id,
+                txn_type: 'WITHDRAW:DEBIT'
+            },
+            relations: ['bank', 'wallet']
+        })
+
+        if (!transaction) {
+            throw new HttpException({
+                status: HttpStatus.NOT_FOUND,
+                message: 'Transaction not found !'
+            }, HttpStatus.NOT_FOUND)
+        }
+
+        if (transaction.txn_status !== 'PENDING') {
+            throw new HttpException({
+                status: HttpStatus.CONFLICT,
+                message: 'Transaction status already updated !',
+                data: {
+                    UTR: UTR,
+                    status: txn_status,
+                    bank: transaction.bank
+                }
+            }, HttpStatus.CONFLICT)
+        }
+
+        return {
+            status: 'success',
+            message: 'Transaction fetched successfully',
+            data: {
+                transaction: transaction,
+                UTR
+            }
+        }
+
+    }
+
+    async rejectTransaction(transaction: TransactionEntity, updateWithdrawDto: UpdateWithdrawDto) {
+
+        const UTR = crypto.randomBytes(20).toString('hex').toUpperCase();
+
+        const transactionUpdate = await this.transactionRepository.update(
+            { UTR: transaction.UTR },
+            { txn_status: updateWithdrawDto.txn_status }
+        )
+
+        const transactionCreated = await this._createTransaction({
+            currency: transaction.currency,
+            amount: transaction.amount,
+            txn_type: 'WITHDRAW:CREDIT',
+            txn_description: 'WITHDRAW:CREDIT : ' + updateWithdrawDto.txn_description,
+            wallet: transaction.wallet,
+            UTR: UTR
+        });
+
+        return {
+            status: 'success',
+            message: 'Withdrawal rejected successfully !',
+            data: {
+                transaction: transactionCreated
+            }
+        }
+
+    }
+
+    async approveTransaction(transaction: TransactionEntity, bank_id: number, updateWithdrawDto: UpdateWithdrawDto, bank_utr_no: string) {
+
+        const utr_Exist = await this.bankRepository.findOne({ utr_no: bank_utr_no });
+
+        if(utr_Exist) {
+            throw new HttpException({
+                status: HttpStatus.CONFLICT,
+                message: 'UTR NO already exists !'
+            }, HttpStatus.CONFLICT);            
+        }
+
+        const transactionUpdate = await this.transactionRepository.update(
+            { UTR: transaction.UTR },
+            { txn_status: updateWithdrawDto.txn_status }
+        )
+
+        const bankUTRUpdate = await this.bankRepository.update(
+            { id: bank_id },
+            { utr_no: bank_utr_no }
+        );
+
+        return {
+            transactionUpdate,
+            bankUTRUpdate
+        };
+    }
 
 
 }

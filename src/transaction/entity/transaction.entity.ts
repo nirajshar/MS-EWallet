@@ -32,7 +32,7 @@ export class TransactionEntity {
 
     @Column({
         type: "enum",
-        enum: ['CREDIT', 'DEBIT', 'REFUND:DEBIT', 'REFUND:CREDIT', 'WITHDRAW'],
+        enum: ['CREDIT', 'DEBIT', 'REFUND:DEBIT', 'REFUND:CREDIT', 'WITHDRAW:DEBIT', 'WITHDRAW:CREDIT'],
         default: null
     })
     public txn_type: string;
@@ -62,7 +62,7 @@ export class TransactionEntity {
     @UpdateDateColumn() updatedAt: Date;
 
     // - Bank UUID
-    @OneToOne(type => BankEntity, bank => bank.id)
+    @OneToOne(type => BankEntity, bank => bank.id, { cascade: true })
     @JoinColumn({ name: 'bank_id' })
     bank: BankEntity;
 

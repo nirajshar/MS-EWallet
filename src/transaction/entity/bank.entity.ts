@@ -53,8 +53,7 @@ export class BankEntity {
     @IsNotEmpty()
     @Column({
         type: 'varchar',
-        nullable: false,
-        unique: true
+        nullable: true
     })
     utr_no: string;
 }
