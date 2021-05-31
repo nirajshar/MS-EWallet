@@ -222,13 +222,6 @@ export class TransactionService {
             }, HttpStatus.NOT_FOUND);
         }
 
-        if (debitTransaction.is_refund) {
-            throw new HttpException({
-                status: HttpStatus.BAD_REQUEST,
-                message: `Transaction already refunded !`
-            }, HttpStatus.BAD_REQUEST);
-        }
-
         const creditTransaction = await this.transactionRepository.findOne({
             where: {
                 UTR: UTR,
@@ -244,16 +237,6 @@ export class TransactionService {
             }, HttpStatus.NOT_FOUND);
         }
 
-
-        if (debitTransaction.amount !== creditTransaction.amount) {
-            if (!debitTransaction) {
-                throw new HttpException({
-                    status: HttpStatus.CONFLICT,
-                    message: `Debit/Credit Transaction amount mismatch !`
-                }, HttpStatus.CONFLICT);
-            }
-        }
-
         return {
             debitTransaction,
             creditTransaction
@@ -261,11 +244,44 @@ export class TransactionService {
 
     }
 
-    async updateUTRRefundStatus(UTR: string, is_refund: boolean): Promise<void> {
-        await this.transactionRepository.update({ UTR: UTR }, { is_refund: is_refund });
+    async updateUTRRefundStatus(UTR: string, is_refunded: boolean): Promise<void> {
+        await this.transactionRepository.update({ UTR: UTR }, { is_refunded: is_refunded });
     }
     // Functions to be strictly used in Wallet Service (END) ---------------------------
 
+    async refundRequest(transactionCreateDto: TransactionCreateDto) {
+
+        const UTR = crypto.randomBytes(20).toString('hex').toUpperCase();
+
+        const debitTransaction = await this._createTransaction({
+            currency: transactionCreateDto.currency,
+            amount: transactionCreateDto.amount,
+            txn_description: transactionCreateDto.txn_description,
+            wallet: transactionCreateDto.masterWallet,
+            UTR: UTR,
+            txn_type: 'REFUND:DEBIT'
+        });
+
+        const creditTransaction = await this._createTransaction({
+            currency: transactionCreateDto.currency,
+            amount: transactionCreateDto.amount,
+            txn_description: transactionCreateDto.txn_description,
+            wallet: transactionCreateDto.userWallet,
+            UTR,
+            txn_type: 'REFUND:CREDIT'
+        });
+
+        return {
+            status: 'success',
+            message: 'Refund request Transaction generated successfully !',
+            data: {
+                debitTransaction,
+                creditTransaction,
+                UTR
+            }
+        }
+
+    }
 
     async refundTransaction(transactionCreateDto: TransactionCreateDto) {
 
@@ -329,7 +345,7 @@ export class TransactionService {
         }
     }
 
-    async getTransactionForApproval(user_wallet_id: string, UTR: string, txn_status: string) {
+    async getTransactionForApproval(UTR: string, txn_status: string, txn_type: string) {
 
         if (UTR === '' || UTR === undefined || UTR === null) {
             throw new HttpException({
@@ -341,8 +357,7 @@ export class TransactionService {
         const transaction = await this.transactionRepository.findOne({
             where: {
                 UTR: UTR,
-                wallet: user_wallet_id,
-                txn_type: 'WITHDRAW:DEBIT'
+                txn_type: txn_type
             },
             relations: ['bank', 'wallet']
         })
@@ -352,7 +367,7 @@ export class TransactionService {
                 status: HttpStatus.NOT_FOUND,
                 message: 'Transaction not found !'
             }, HttpStatus.NOT_FOUND)
-        }
+        }       
 
         if (transaction.txn_status !== 'PENDING') {
             throw new HttpException({
@@ -377,27 +392,27 @@ export class TransactionService {
 
     }
 
-    async rejectTransaction(transaction: TransactionEntity, updateWithdrawDto: UpdateWithdrawDto) {
-
-        const UTR = crypto.randomBytes(20).toString('hex').toUpperCase();
+    async rejectTransaction(transaction: TransactionEntity, txn_status: string, txn_description: string, txn_type: string) {
 
         const transactionUpdate = await this.transactionRepository.update(
             { UTR: transaction.UTR },
-            { txn_status: updateWithdrawDto.txn_status }
+            { txn_status: txn_status }
         )
+
+        const UTR = crypto.randomBytes(20).toString('hex').toUpperCase();
 
         const transactionCreated = await this._createTransaction({
             currency: transaction.currency,
             amount: transaction.amount,
-            txn_type: 'WITHDRAW:CREDIT',
-            txn_description: 'WITHDRAW:CREDIT : ' + updateWithdrawDto.txn_description,
+            txn_type: txn_type,
+            txn_description: txn_type + ' : ' + txn_description,
             wallet: transaction.wallet,
             UTR: UTR
         });
 
         return {
             status: 'success',
-            message: 'Withdrawal rejected successfully !',
+            message: 'Transaction rejected successfully !',
             data: {
                 transaction: transactionCreated
             }
@@ -405,31 +420,65 @@ export class TransactionService {
 
     }
 
-    async approveTransaction(transaction: TransactionEntity, bank_id: number, updateWithdrawDto: UpdateWithdrawDto, bank_utr_no: string) {
+    async approveTransaction(transaction: TransactionEntity, bank_id: number, txn_status: string, bank_utr_no: string, transaction_type: string) {
 
-        const utr_Exist = await this.bankRepository.findOne({ utr_no: bank_utr_no });
-
-        if(utr_Exist) {
-            throw new HttpException({
-                status: HttpStatus.CONFLICT,
-                message: 'UTR NO already exists !'
-            }, HttpStatus.CONFLICT);            
+        enum transactionTYPE {
+            WITHDRAW = 'WITHDRAW',
+            REFUND = 'REFUND'
         }
 
-        const transactionUpdate = await this.transactionRepository.update(
-            { UTR: transaction.UTR },
-            { txn_status: updateWithdrawDto.txn_status }
-        )
+        if (!Object.values(transactionTYPE).includes(transaction_type as transactionTYPE)) {
+            throw new HttpException({
+                status: HttpStatus.UNPROCESSABLE_ENTITY,
+                message: 'Transaction Invalid !'
+            }, HttpStatus.UNPROCESSABLE_ENTITY)
+        }
 
-        const bankUTRUpdate = await this.bankRepository.update(
-            { id: bank_id },
-            { utr_no: bank_utr_no }
-        );
+        if (transaction_type === transactionTYPE.WITHDRAW) {
 
-        return {
-            transactionUpdate,
-            bankUTRUpdate
-        };
+            const utr_Exist = await this.bankRepository.findOne({ utr_no: bank_utr_no });
+
+            if (utr_Exist) {
+                throw new HttpException({
+                    status: HttpStatus.CONFLICT,
+                    message: 'UTR NO already exists !'
+                }, HttpStatus.CONFLICT);
+            }
+
+            const bankUTRUpdate = await this.bankRepository.update(
+                { id: bank_id },
+                { utr_no: bank_utr_no }
+            );
+
+            const transactionUpdate = await this.transactionRepository.update(
+                { UTR: transaction.UTR },
+                { txn_status: txn_status }
+            )
+
+            
+            return {
+                transactionUpdate,
+                bankUTRUpdate
+            }
+
+        } else if (transaction_type === transactionTYPE.REFUND) {
+
+            const transactionUpdate = await this.transactionRepository.update(
+                { UTR: transaction.UTR },
+                { txn_status: txn_status }
+            )            
+
+            return {
+                transactionUpdate
+            }
+
+        } else {
+            throw new HttpException({
+                status: HttpStatus.UNPROCESSABLE_ENTITY,
+                message: 'Transaction Type Invalid !'
+            }, HttpStatus.UNPROCESSABLE_ENTITY)
+        }
+
     }
 
 

@@ -14,6 +14,8 @@ import { PayToMasterDto } from './dto/wallet-transaction/payToMasterDto.dto';
 import { RefundTransactionDto } from './dto/wallet-transaction/refundTransactionDto.dto';
 import { WithdrawFromRegularDto } from './dto/wallet-transaction/withdrawFromRegularDto.dto';
 import { UpdateWithdrawDto } from './dto/wallet-transaction/updateWithdrawDto.dto';
+import { RefundRequestDto } from './dto/wallet-transaction/refundRequestDto.dto';
+import { UpdateRefundRequestDto } from './dto/wallet-transaction/updateRefundRequestDto.dto';
 
 
 @Injectable()
@@ -374,6 +376,147 @@ export class WalletService {
 
     }
 
+    // Generate Refund Request by Wallet (REGULAR) from Wallet (MASTER)
+    async refundRequest(user_wallet_id: string, refundRequestDto: RefundRequestDto) {
+
+        const { UTR, txn_description } = refundRequestDto;
+
+        let transaction: any;
+
+        const userWallet = await this._getWalletOrFail(user_wallet_id, 'REGULAR');
+
+        const system = await this.systemRepository.findOne({ where: { id: userWallet.system.id } });
+
+        if (!system) {
+            throw new HttpException({
+                status: HttpStatus.NOT_FOUND,
+                message: 'System for User wallet not found !'
+            }, HttpStatus.NOT_FOUND)
+        }
+
+        const masterWallet = await this._getWalletOrFail(user_wallet_id, 'MASTER', system.id);
+
+        const transactionsToRefund = await this.transactionService.getTransactionFromUTRWallet(UTR, userWallet.id, masterWallet.id);
+
+        if (transactionsToRefund.debitTransaction.is_refunded) {
+            throw new HttpException({
+                status: HttpStatus.BAD_REQUEST,
+                message: `Transaction already refunded !`
+            }, HttpStatus.BAD_REQUEST);
+        }
+
+        if (transactionsToRefund.debitTransaction.amount !== transactionsToRefund.creditTransaction.amount) {
+            throw new HttpException({
+                status: HttpStatus.CONFLICT,
+                message: `Debit/Credit Transaction amount mismatch !`
+            }, HttpStatus.CONFLICT);
+        }
+
+        if (masterWallet.balance < transactionsToRefund.debitTransaction.amount) {
+            throw new HttpException({
+                status: HttpStatus.CONFLICT,
+                message: `Master Wallet balance insufficient !`
+            }, HttpStatus.CONFLICT);
+        }
+
+        transaction = await this.transactionService.refundRequest({
+            currency: userWallet.currency,
+            amount: transactionsToRefund.debitTransaction.amount,
+            txn_description: 'Refund-Wallet : ' + txn_description + '|' + UTR,
+            userWallet: userWallet,
+            masterWallet: masterWallet
+        });
+
+        masterWallet.balance = parseFloat(masterWallet.balance.toFixed(2)) - parseFloat(Number(transactionsToRefund.debitTransaction.amount).toFixed(2));
+
+        const paymentStatus = await this.connection.transaction(async manager => {
+            await this.walletRepository.manager.save(masterWallet);
+        }).then(async () => {
+            return true;
+        }).catch(async (err) => {
+            return false;
+        });
+
+        const response = {
+            status: paymentStatus ? 'success' : 'failure',
+            message: paymentStatus ? 'Refund request generated successfully. Awaiting approval !' : 'Failed to generate Refund request !',
+            data: {
+                UTR: transaction.data.UTR
+            }
+        }
+
+        if (response.status !== 'success') {
+            throw new HttpException(response, HttpStatus.CONFLICT);
+        } else {
+            return response;
+        }
+
+    }
+
+    // Approve / Reject Refund Request : Infra MGMT Team
+    async updateRefundRequest(updateRefundRequestDto: UpdateRefundRequestDto) {
+
+        enum approvalStatus {
+            APPROVED = "APPROVED",
+            REJECTED = "REJECTED"
+        }
+
+        let transactionState: any;
+
+        const { UTR, txn_status } = updateRefundRequestDto;
+
+        if (!Object.values(approvalStatus).includes(txn_status as approvalStatus)) {
+            throw new HttpException({
+                status: HttpStatus.UNPROCESSABLE_ENTITY,
+                message: 'Status Invalid !'
+            }, HttpStatus.UNPROCESSABLE_ENTITY)
+        }
+
+        const refundDebitTransaction = await this.transactionService.getTransactionForApproval(UTR, txn_status, 'REFUND:DEBIT');
+        const masterWallet = await this._getWalletOrFail(refundDebitTransaction.data.transaction.wallet.id, 'MASTER');
+
+        const refundCreditTransaction = await this.transactionService.getTransactionForApproval(UTR, txn_status, 'REFUND:CREDIT');
+        const userWallet = await this._getWalletOrFail(refundCreditTransaction.data.transaction.wallet.id, 'REGULAR');
+
+        const splitDescription = refundDebitTransaction.data.transaction.txn_description.split('|')
+        const refund_against_utr = splitDescription[splitDescription.length - 1];
+
+        if (txn_status === approvalStatus.REJECTED) {
+            transactionState = await this.transactionService.rejectTransaction(refundDebitTransaction.data.transaction, updateRefundRequestDto.txn_status, updateRefundRequestDto.txn_description, 'REFUND:CREDIT');
+            masterWallet.balance = parseFloat(masterWallet.balance.toFixed(2)) + parseFloat(Number(refundDebitTransaction.data.transaction.amount).toFixed(2));
+            await this.walletRepository.save(masterWallet);
+            await this.transactionService.updateTransactionStatus(refundDebitTransaction.data.transaction.uuid, 'REJECTED');
+            await this.transactionService.updateTransactionStatus(transactionState.data.transaction.uuid, 'SUCCESS');
+        } else if (txn_status === approvalStatus.APPROVED) {
+            transactionState = await this.transactionService.approveTransaction(refundCreditTransaction.data.transaction,
+                null,
+                updateRefundRequestDto.txn_status,
+                null,
+                'REFUND'
+            );
+            userWallet.balance = parseFloat(userWallet.balance.toFixed(2)) + parseFloat(Number(refundCreditTransaction.data.transaction.amount).toFixed(2));
+            await this.walletRepository.save(userWallet);
+            await this.transactionService.updateUTRRefundStatus(refund_against_utr, true);
+            await this.transactionService.updateUTRRefundStatus(UTR, true);
+        } else {
+            throw new HttpException({
+                status: HttpStatus.BAD_REQUEST,
+                message: 'Failed to Update request !'
+            }, HttpStatus.BAD_REQUEST)
+        }
+
+        return {
+            status: 'success',
+            message: `Refund request ${txn_status} successfully !`,
+            data: {
+                UTR: refundDebitTransaction.data.UTR
+            }
+        }
+
+
+
+    }
+
     // Generate Refund from Wallet (MASTER) to Wallet (REGULAR)
     async refundTransaction(refundTransactionDto: RefundTransactionDto) {
 
@@ -395,6 +538,20 @@ export class WalletService {
         const masterWallet = await this._getWalletOrFail(user_wallet_id, 'MASTER', system.id);
 
         const transactionsToRefund = await this.transactionService.getTransactionFromUTRWallet(UTR, userWallet.id, masterWallet.id);
+
+        if (transactionsToRefund.debitTransaction.is_refunded) {
+            throw new HttpException({
+                status: HttpStatus.BAD_REQUEST,
+                message: `Transaction already refunded !`
+            }, HttpStatus.BAD_REQUEST);
+        }
+
+        if (transactionsToRefund.debitTransaction.amount !== transactionsToRefund.creditTransaction.amount) {
+            throw new HttpException({
+                status: HttpStatus.CONFLICT,
+                message: `Debit/Credit Transaction amount mismatch !`
+            }, HttpStatus.CONFLICT);
+        }
 
         if (masterWallet.balance < transactionsToRefund.debitTransaction.amount) {
             throw new HttpException({
@@ -502,8 +659,8 @@ export class WalletService {
     async updateWithdrawRequest(updateWithdrawDto: UpdateWithdrawDto) {
 
         enum approvalStatus {
-            SUCCESS = "SUCCESS",
-            FAILURE = "FAILURE"
+            APPROVED = "APPROVED",
+            REJECTED = "REJECTED"
         }
 
         let transactionState: any;
@@ -516,26 +673,40 @@ export class WalletService {
                 message: 'Status Invalid !'
             }, HttpStatus.UNPROCESSABLE_ENTITY)
         }
-        
-        const transaction = await this.transactionService.getTransactionForApproval(user_wallet_id, UTR, txn_status);
+
+        const transaction = await this.transactionService.getTransactionForApproval(UTR, txn_status, 'WITHDRAW:DEBIT');
+
+        if(transaction.data.transaction.wallet.id !== user_wallet_id ){
+            throw new HttpException({
+                status: HttpStatus.BAD_REQUEST,
+                message: 'Transaction not associated with given User Wallet'
+            }, HttpStatus.BAD_REQUEST)
+        }
+
         const userWallet = await this._getWalletOrFail(user_wallet_id, 'REGULAR');
 
-        if (txn_status === approvalStatus.FAILURE) {
-            transactionState = await this.transactionService.rejectTransaction(transaction.data.transaction, updateWithdrawDto);
+        if (txn_status === approvalStatus.REJECTED) {
+            transactionState = await this.transactionService.rejectTransaction(transaction.data.transaction, updateWithdrawDto.txn_status, updateWithdrawDto.txn_description, 'WITHDRAW:CREDIT');
             userWallet.balance = parseFloat(userWallet.balance.toFixed(2)) + parseFloat(Number(transaction.data.transaction.amount).toFixed(2));
             await this.walletRepository.save(userWallet);
             await this.transactionService.updateTransactionStatus(transactionState.data.transaction.uuid, 'SUCCESS');
-        } else {
-           transactionState = await this.transactionService.approveTransaction(transaction.data.transaction, 
-                transaction.data.transaction.bank.id, 
-                updateWithdrawDto,
-                bank_utr_no
+        } else if (txn_status === approvalStatus.APPROVED) {
+            transactionState = await this.transactionService.approveTransaction(transaction.data.transaction,
+                transaction.data.transaction.bank.id,
+                updateWithdrawDto.txn_status,
+                bank_utr_no,
+                'WITHDRAW'
             );
+        } else {
+            throw new HttpException({
+                status: HttpStatus.BAD_REQUEST,
+                message: 'Failed to Update request !'
+            }, HttpStatus.BAD_REQUEST)
         }
 
         return {
             status: 'success',
-            message: 'Transaction Withdrawal updated successfully !',
+            message: `Withdrawal request ${txn_status} successfully !`,
             data: {
                 UTR: transaction.data.UTR
             }

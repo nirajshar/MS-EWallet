@@ -1,17 +1,12 @@
 import { ApiProperty } from "@nestjs/swagger";
 import { IsNotEmpty, IsOptional, IsString} from "class-validator";
 
-export class RefundTransactionDto {
+export class RefundRequestDto {
 
     @ApiProperty()
     @IsNotEmpty()
     @IsString()
-    UTR: string;
-
-    @ApiProperty()
-    @IsNotEmpty()
-    @IsString()
-    user_wallet_id: string;
+    UTR: string;   
 
     @ApiProperty()
     @IsOptional()

@@ -53,7 +53,7 @@ export class TransactionEntity {
 
     @Column({
         type: "enum",
-        enum: ['FAILURE', 'PENDING', 'SUCCESS'],
+        enum: ['FAILURE', 'PENDING', 'SUCCESS', 'REJECTED', 'APPROVED'],
         default: 'PENDING'
     })
     public txn_status: string;
@@ -79,5 +79,5 @@ export class TransactionEntity {
     @Column({
         default: 0
     })
-    is_refund: boolean;
+    is_refunded: boolean;
 }
