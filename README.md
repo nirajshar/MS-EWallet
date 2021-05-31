@@ -33,6 +33,8 @@ EWallet (closed wallet) microservice for storing System (Master) & Wallet (Users
       2: Wallet Transactions
         - [ POST ]      - Deposit (CREDIT) to Regular Wallet      [ Accept Payment via NEFT ]
         - [ POST ]      - Get Wallet Transactions by Wallet UUID  
+        - [ POST ]      - Approve Refund via UTR 
+        - [ POST ]      - Approve Withdrawal via UTR
         
         
     B. User
@@ -44,6 +46,8 @@ EWallet (closed wallet) microservice for storing System (Master) & Wallet (Users
         - [ POST ]      - Get Balance                   [ OWN ]
         - [ POST ]      - Check Transactions            [ OWN ]
         - [ POST ]      - Pay (DEBIT) to Master Wallet  [ Transfer: Regular to Master Account ] 
+        - [ POST ]      - Generate Refund request via UTR
+        - [ POST ]      - Generate Withdrawal request via Amount & Bank
 
 ## Installation
 
