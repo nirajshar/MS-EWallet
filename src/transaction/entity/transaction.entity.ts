@@ -79,5 +79,5 @@ export class TransactionEntity {
     @Column({
         default: 0
     })
-    is_refunded: boolean;
+    is_settled: boolean;
 }

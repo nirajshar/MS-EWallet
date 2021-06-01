@@ -244,8 +244,8 @@ export class TransactionService {
 
     }
 
-    async updateUTRRefundStatus(UTR: string, is_refunded: boolean): Promise<void> {
-        await this.transactionRepository.update({ UTR: UTR }, { is_refunded: is_refunded });
+    async updateUTRRefundStatus(UTR: string, is_settled: boolean): Promise<void> {
+        await this.transactionRepository.update({ UTR: UTR }, { is_settled: is_settled });
     }
     // Functions to be strictly used in Wallet Service (END) ---------------------------
 
@@ -262,21 +262,11 @@ export class TransactionService {
             txn_type: 'REFUND:DEBIT'
         });
 
-        const creditTransaction = await this._createTransaction({
-            currency: transactionCreateDto.currency,
-            amount: transactionCreateDto.amount,
-            txn_description: transactionCreateDto.txn_description,
-            wallet: transactionCreateDto.userWallet,
-            UTR,
-            txn_type: 'REFUND:CREDIT'
-        });
-
         return {
             status: 'success',
             message: 'Refund request Transaction generated successfully !',
             data: {
                 debitTransaction,
-                creditTransaction,
                 UTR
             }
         }
@@ -367,20 +357,8 @@ export class TransactionService {
                 status: HttpStatus.NOT_FOUND,
                 message: 'Transaction not found !'
             }, HttpStatus.NOT_FOUND)
-        }       
-
-        if (transaction.txn_status !== 'PENDING') {
-            throw new HttpException({
-                status: HttpStatus.CONFLICT,
-                message: 'Transaction status already updated !',
-                data: {
-                    UTR: UTR,
-                    status: txn_status,
-                    bank: transaction.bank
-                }
-            }, HttpStatus.CONFLICT)
         }
-
+        
         return {
             status: 'success',
             message: 'Transaction fetched successfully',
@@ -420,7 +398,7 @@ export class TransactionService {
 
     }
 
-    async approveTransaction(transaction: TransactionEntity, bank_id: number, txn_status: string, bank_utr_no: string, transaction_type: string) {
+    async approveTransaction(transaction: TransactionEntity, bank_id: number, txn_status: string, bank_utr_no: string, transaction_type: string, userDebitTransaction: TransactionEntity = null) {
 
         enum transactionTYPE {
             WITHDRAW = 'WITHDRAW',
@@ -463,13 +441,25 @@ export class TransactionService {
 
         } else if (transaction_type === transactionTYPE.REFUND) {
 
+            const creditTransactionCreated = await this._createTransaction({
+                currency: userDebitTransaction.currency,
+                amount: userDebitTransaction.amount,
+                txn_type: 'REFUND:CREDIT',
+                txn_description: 'REFUND:CREDIT' + ' : ' + transaction.txn_description,
+                wallet: userDebitTransaction.wallet,
+                UTR: transaction.UTR
+            });
+
             const transactionUpdate = await this.transactionRepository.update(
                 { UTR: transaction.UTR },
                 { txn_status: txn_status }
             )            
 
             return {
-                transactionUpdate
+                transactionUpdate,
+                data: {
+                    creditTransactionCreated
+                }
             }
 
         } else {

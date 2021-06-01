@@ -123,17 +123,6 @@ export class WalletController {
         return this.walletService.updateRefundRequest(updateRefundRequestDto);
     }
 
-
-    // Refund from Wallet (MASTER) to Wallet (REGULAR) : INFRA-MGMT Access only
-    @ApiTags('Wallet-Transaction-ADMIN')
-    @ApiResponse({ status: 201, description: 'Amount paid to User Account' })
-    @ApiResponse({ status: 404, description: 'Wallet not found !' })
-    @ApiBody({ type: RefundTransactionDto })
-    @Post('refund-direct')
-    async refundTransaction(@Body() refundTransaction: RefundTransactionDto) {
-        return this.walletService.refundTransaction(refundTransaction);
-    }
-
     // Withdraw Request from Wallet (REGULAR) to BANK 
     @ApiTags('Wallet-Transaction-USER')
     @ApiResponse({ status: 201, description: 'Request for Withdrawal Initiated from User Account' })
@@ -157,4 +146,14 @@ export class WalletController {
     }
 
 
+    // --
+    // Refund from Wallet (MASTER) to Wallet (REGULAR) : INFRA-MGMT Access only
+    @ApiTags('Wallet-Transaction-ADMIN')
+    @ApiResponse({ status: 201, description: 'Amount paid to User Account' })
+    @ApiResponse({ status: 404, description: 'Wallet not found !' })
+    @ApiBody({ type: RefundTransactionDto })
+    @Post('refund-direct')
+    async refundTransaction(@Body() refundTransaction: RefundTransactionDto) {
+        return this.walletService.refundTransaction(refundTransaction);
+    }
 }

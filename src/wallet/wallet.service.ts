@@ -394,14 +394,14 @@ export class WalletService {
             }, HttpStatus.NOT_FOUND)
         }
 
-        const masterWallet = await this._getWalletOrFail(user_wallet_id, 'MASTER', system.id);
+        const masterWallet = await this._getWalletOrFail(null, 'MASTER', system.id);
 
         const transactionsToRefund = await this.transactionService.getTransactionFromUTRWallet(UTR, userWallet.id, masterWallet.id);
 
-        if (transactionsToRefund.debitTransaction.is_refunded) {
+        if (transactionsToRefund.debitTransaction.is_settled) {
             throw new HttpException({
                 status: HttpStatus.BAD_REQUEST,
-                message: `Transaction already refunded !`
+                message: `Transaction already settled !`
             }, HttpStatus.BAD_REQUEST);
         }
 
@@ -475,11 +475,24 @@ export class WalletService {
         const refundDebitTransaction = await this.transactionService.getTransactionForApproval(UTR, txn_status, 'REFUND:DEBIT');
         const masterWallet = await this._getWalletOrFail(refundDebitTransaction.data.transaction.wallet.id, 'MASTER');
 
-        const refundCreditTransaction = await this.transactionService.getTransactionForApproval(UTR, txn_status, 'REFUND:CREDIT');
-        const userWallet = await this._getWalletOrFail(refundCreditTransaction.data.transaction.wallet.id, 'REGULAR');
+        if (refundDebitTransaction.data.transaction.txn_status !== 'PENDING') {
+            throw new HttpException({
+                status: HttpStatus.CONFLICT,
+                message: 'Transaction status already updated !',
+                data: {
+                    UTR: UTR,
+                    status: txn_status,
+                    bank: refundDebitTransaction.data.transaction.bank
+                }
+            }, HttpStatus.CONFLICT)
+        }
+
 
         const splitDescription = refundDebitTransaction.data.transaction.txn_description.split('|')
         const refund_against_utr = splitDescription[splitDescription.length - 1];
+
+        const userDebitTransaction = await this.transactionService.getTransactionForApproval(refund_against_utr, txn_status, 'DEBIT');
+        const userWallet = await this._getWalletOrFail(userDebitTransaction.data.transaction.wallet.id, 'REGULAR');
 
         if (txn_status === approvalStatus.REJECTED) {
             transactionState = await this.transactionService.rejectTransaction(refundDebitTransaction.data.transaction, updateRefundRequestDto.txn_status, updateRefundRequestDto.txn_description, 'REFUND:CREDIT');
@@ -488,14 +501,17 @@ export class WalletService {
             await this.transactionService.updateTransactionStatus(refundDebitTransaction.data.transaction.uuid, 'REJECTED');
             await this.transactionService.updateTransactionStatus(transactionState.data.transaction.uuid, 'SUCCESS');
         } else if (txn_status === approvalStatus.APPROVED) {
-            transactionState = await this.transactionService.approveTransaction(refundCreditTransaction.data.transaction,
+            transactionState = await this.transactionService.approveTransaction(refundDebitTransaction.data.transaction,
                 null,
                 updateRefundRequestDto.txn_status,
                 null,
-                'REFUND'
-            );
-            userWallet.balance = parseFloat(userWallet.balance.toFixed(2)) + parseFloat(Number(refundCreditTransaction.data.transaction.amount).toFixed(2));
+                'REFUND',
+                userDebitTransaction.data.transaction
+            ); 
+            userWallet.balance = parseFloat(userWallet.balance.toFixed(2)) + parseFloat(Number(userDebitTransaction.data.transaction.amount).toFixed(2));
             await this.walletRepository.save(userWallet);
+            await this.transactionService.updateTransactionStatus(refundDebitTransaction.data.transaction.uuid, 'APPROVED');
+            await this.transactionService.updateTransactionStatus(transactionState.data.creditTransactionCreated.uuid, 'SUCCESS');
             await this.transactionService.updateUTRRefundStatus(refund_against_utr, true);
             await this.transactionService.updateUTRRefundStatus(UTR, true);
         } else {
@@ -539,7 +555,7 @@ export class WalletService {
 
         const transactionsToRefund = await this.transactionService.getTransactionFromUTRWallet(UTR, userWallet.id, masterWallet.id);
 
-        if (transactionsToRefund.debitTransaction.is_refunded) {
+        if (transactionsToRefund.debitTransaction.is_settled) {
             throw new HttpException({
                 status: HttpStatus.BAD_REQUEST,
                 message: `Transaction already refunded !`
@@ -676,7 +692,7 @@ export class WalletService {
 
         const transaction = await this.transactionService.getTransactionForApproval(UTR, txn_status, 'WITHDRAW:DEBIT');
 
-        if(transaction.data.transaction.wallet.id !== user_wallet_id ){
+        if (transaction.data.transaction.wallet.id !== user_wallet_id) {
             throw new HttpException({
                 status: HttpStatus.BAD_REQUEST,
                 message: 'Transaction not associated with given User Wallet'
