@@ -471,5 +471,38 @@ export class TransactionService {
 
     }
 
+    async payToMasterRequestTransaction(transactionCreateDto: TransactionCreateDto): Promise<object> {
+
+        const UTR = crypto.randomBytes(20).toString('hex').toUpperCase();
+
+        const debitTransaction = await this._createTransaction({
+            currency: transactionCreateDto.currency,
+            amount: transactionCreateDto.amount,
+            txn_description: transactionCreateDto.txn_description,
+            wallet: transactionCreateDto.userWallet,
+            UTR: UTR,
+            txn_type: 'DEBIT'
+        });
+
+        const creditTransaction = await this._createTransaction({
+            currency: transactionCreateDto.currency,
+            amount: transactionCreateDto.amount,
+            txn_description: transactionCreateDto.txn_description,
+            wallet: transactionCreateDto.masterWallet,
+            UTR,
+            txn_type: 'CREDIT'
+        });
+
+        return {
+            status: 'success',
+            message: 'Pay request generated successfully',
+            data: {
+                debitTransaction,
+                creditTransaction,
+                UTR
+            }
+        }
+
+    }
 
 }

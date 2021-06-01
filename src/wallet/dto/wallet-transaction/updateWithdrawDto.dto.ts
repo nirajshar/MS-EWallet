@@ -11,7 +11,7 @@ export class UpdateWithdrawDto {
     @IsNotEmpty()
     UTR: string;
 
-    @ApiProperty()
+    @ApiProperty({ enum: ['APPROVED', 'REJECTED']})
     @IsNotEmpty()
     txn_status: string;
 

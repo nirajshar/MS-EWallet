@@ -17,6 +17,7 @@ import { UpdateWithdrawDto } from './dto/wallet-transaction/updateWithdrawDto.dt
 import { RefundRequestDto } from './dto/wallet-transaction/refundRequestDto.dto';
 import { UpdateRefundRequestDto } from './dto/wallet-transaction/updateRefundRequestDto.dto';
 import * as crypto from 'crypto';
+import { UpdatePayToMasterRequestDto } from './dto/wallet-transaction/updatePayToMasterRequestDto.dto';
 
 
 
@@ -732,6 +733,129 @@ export class WalletService {
 
     }
 
+    async payToMasterRequest(user_wallet_id: string, payToMasterDto: PayToMasterDto) {
+
+        const { amount, txn_description } = payToMasterDto;
+
+        let transaction: any;
+
+        const userWallet = await this._getWalletOrFail(user_wallet_id, 'REGULAR');
+
+        const system = await this.systemRepository.findOne({ where: { id: userWallet.system.id } });
+
+        if (!system) {
+            throw new HttpException({
+                status: HttpStatus.NOT_FOUND,
+                message: 'System for User wallet not found !'
+            }, HttpStatus.NOT_FOUND)
+        }
+
+        const masterWallet = await this._getWalletOrFail(user_wallet_id, 'MASTER', system.id);
+
+        transaction = await this.transactionService.payToMasterRequestTransaction({
+            currency: userWallet.currency,
+            amount: amount,
+            txn_description: 'REQUEST-PAYMENT-MASTER : ' + txn_description,
+            userWallet: userWallet,
+            masterWallet: masterWallet
+        });
+
+        return {
+            status: 'success',
+            message: 'Pay to Master request generated successfully !',
+            data: {
+                UTR: transaction.data.UTR
+            }
+        }
+
+    }
+
+    async updatePayToMasterRequest(updatePayToMasterRequest: UpdatePayToMasterRequestDto) {
+
+        enum approvalStatus {
+            APPROVED = "APPROVED",
+            REJECTED = "REJECTED"
+        }
+
+        let paymentStatus: boolean;
+
+        const { UTR, txn_status } = updatePayToMasterRequest;
+
+        if (!Object.values(approvalStatus).includes(txn_status as approvalStatus)) {
+            throw new HttpException({
+                status: HttpStatus.UNPROCESSABLE_ENTITY,
+                message: 'Status Invalid !'
+            }, HttpStatus.UNPROCESSABLE_ENTITY)
+        }
+
+        const debitTransaction = await this.transactionService.getTransactionForApproval(UTR, txn_status, 'DEBIT');
+        const userWallet = await this._getWalletOrFail(debitTransaction.data.transaction.wallet.id, 'REGULAR');
+
+        const creditTransaction = await this.transactionService.getTransactionForApproval(UTR, txn_status, 'CREDIT');
+        const masterWallet = await this._getWalletOrFail(creditTransaction.data.transaction.wallet.id, 'MASTER');
+
+        if (debitTransaction.data.transaction.txn_status !== 'PENDING' || creditTransaction.data.transaction.txn_status !== 'PENDING') {
+            throw new HttpException({
+                status: HttpStatus.CONFLICT,
+                message: 'Transaction status already updated !',
+                data: {
+                    UTR: UTR,
+                    status: txn_status,
+                    bank: debitTransaction.data.transaction.bank
+                }
+            }, HttpStatus.CONFLICT)
+        }
+
+        if (debitTransaction.data.transaction.amount !== creditTransaction.data.transaction.amount) {
+            throw new HttpException({ status: HttpStatus.CONFLICT, message: 'Debit/Credit amount mismatch !' }, HttpStatus.CONFLICT)
+        }
+
+        if (txn_status === approvalStatus.REJECTED) {
+
+            await this.transactionService.updateTransactionStatus(debitTransaction.data.transaction.uuid, 'REJECTED');
+            await this.transactionService.updateTransactionStatus(creditTransaction.data.transaction.uuid, 'REJECTED');
+
+            paymentStatus = true;
+
+        } else if (txn_status === approvalStatus.APPROVED) {
+
+            debitTransaction.data.transaction.amount
+
+            userWallet.balance = parseFloat(userWallet.balance.toFixed(2)) - parseFloat(Number(debitTransaction.data.transaction.amount).toFixed(2));
+            masterWallet.balance = parseFloat(masterWallet.balance.toFixed(2)) + parseFloat(Number(creditTransaction.data.transaction.amount).toFixed(2));
+
+            paymentStatus = await this.connection.transaction(async manager => {
+                await this.walletRepository.manager.save(userWallet);
+                await this.walletRepository.manager.save(masterWallet);
+            }).then(async () => {
+                await this.transactionService.updateTransactionStatus(debitTransaction.data.transaction.uuid, 'APPROVED');
+                await this.transactionService.updateTransactionStatus(creditTransaction.data.transaction.uuid, 'APPROVED');
+                return true;
+            }).catch(async (err) => {
+                await this.transactionService.updateTransactionStatus(debitTransaction.data.transaction.uuid, 'FAILURE');
+                await this.transactionService.updateTransactionStatus(creditTransaction.data.transaction.uuid, 'FAILURE');
+                return false;
+            });
+
+        } else {
+            throw new HttpException({ status: HttpStatus.CONFLICT, message: 'Status Invalid !' }, HttpStatus.CONFLICT)
+        }
+
+        const response = {
+            status: paymentStatus ? 'success' : 'failure',
+            message: paymentStatus ? 'Amount paid to Master account successfully !' : 'Failed to Pay !',
+            data: {
+                UTR: debitTransaction.data.transaction.UTR
+            }
+        }
+
+        if (response.status !== 'success') {
+            throw new HttpException(response, HttpStatus.CONFLICT);
+        } else {
+            return response;
+        }
+
+    }
 
     // Update Access Token
     async generateWalletAccessToken(id: string): Promise<object> {

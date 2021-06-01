@@ -36,7 +36,7 @@ export class BankEntity {
         type: 'text',
         nullable: false,
         encrypt: {
-            key: process.env.DB_COLUMN_ENCRYPT_KEY || 'ABCD',
+            key: process.env.DB_COLUMN_ENCRYPT_KEY || 'D662BC345845CCE05E5893DE6455DD3907FB3B2875AA71BB',
             algorithm: process.env.DB_COLUMN_ALGORITHM || 'aes-256-cbc',
             ivLength: Number(process.env.DB_COLUMN_ivLength) || 16
         }

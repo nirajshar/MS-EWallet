@@ -1,9 +1,10 @@
 import { Body, Controller, Delete, Get, Headers, HttpCode, HttpStatus, Param, Post, Put, Res } from '@nestjs/common';
-import { ApiBody, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiConsumes, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { DepositToUserDto } from './dto/wallet-transaction/depositToUserDto.dto';
 import { PayToMasterDto } from './dto/wallet-transaction/payToMasterDto.dto';
 import { RefundRequestDto } from './dto/wallet-transaction/refundRequestDto.dto';
 import { RefundTransactionDto } from './dto/wallet-transaction/refundTransactionDto.dto';
+import { UpdatePayToMasterRequestDto } from './dto/wallet-transaction/updatePayToMasterRequestDto.dto';
 import { UpdateRefundRequestDto } from './dto/wallet-transaction/updateRefundRequestDto.dto';
 import { UpdateWithdrawDto } from './dto/wallet-transaction/updateWithdrawDto.dto';
 import { WithdrawFromRegularDto } from './dto/wallet-transaction/withdrawFromRegularDto.dto';
@@ -96,10 +97,10 @@ export class WalletController {
     @ApiResponse({ status: 404, description: 'Wallet not found !' })
     @ApiBody({ type: DepositToUserDto })
     @Post('deposit/neft')
-    async depositToUserWallet(
-        @Headers('user-wallet-id') destination_wallet_id: string,
+    async depositNEFT(
+        @Headers('user-wallet-id') user_wallet_id: string,
         @Body() depositToUserDto: DepositToUserDto) {
-        return this.walletService.depositNEFT(destination_wallet_id, depositToUserDto);
+        return this.walletService.depositNEFT(user_wallet_id, depositToUserDto);
     }
 
     // Get Wallet with All Transactions
@@ -169,10 +170,32 @@ export class WalletController {
         return this.walletService.updateWithdrawRequest(updateWithdrawDto);
     }
 
+    // Pay to Master Request for Wallet (REGULAR) from Wallet (MASTER) : INFRA MGMT TEAM
+    @ApiTags('Wallet-Transaction-ADMIN')
+    @ApiResponse({ status: 201, description: 'Pay to Master request generated successfully. Awaiting approval !' })
+    @ApiResponse({ status: 404, description: 'Wallet not found !' })
+    @ApiResponse({ status: 400, description: 'Failed to generate Pay to Master request !' })
+    @ApiBody({ type: PayToMasterDto })
+    @Post('pay/request')
+    async payToMasterRequest(
+        @Headers('user_wallet_id') user_wallet_id: string,
+        @Body() payToMasterDto: PayToMasterDto) {
+        return this.walletService.payToMasterRequest(user_wallet_id, payToMasterDto);
+    }
+
+    // Pay to Master Approval/Rejection by Wallet (REGULAR) 
+    @ApiTags('Wallet-Transaction-USER')
+    @ApiResponse({ status: 201, description: 'Refund Request Approved/Rejected successfully !' })
+    @ApiResponse({ status: 404, description: 'Wallet not found !' })
+    @ApiBody({ type: UpdatePayToMasterRequestDto })
+    @Post('pay/approve')
+    async updatePayToMasterRequest(@Body() updatePayToMasterRequestDto: UpdatePayToMasterRequestDto) {
+        return this.walletService.updatePayToMasterRequest(updatePayToMasterRequestDto);
+    }
 
     // --
     // Refund from Wallet (MASTER) to Wallet (REGULAR) : INFRA-MGMT Access only
-    @ApiTags('Wallet-Transaction-ADMIN')
+    @ApiTags('Wallet-Transaction-ADMIN : Direct')
     @ApiResponse({ status: 201, description: 'Amount paid to User Account' })
     @ApiResponse({ status: 404, description: 'Wallet not found !' })
     @ApiBody({ type: RefundTransactionDto })

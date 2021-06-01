@@ -10,6 +10,7 @@ import { WalletService } from 'src/wallet/wallet.service';
 import { WalletEntity } from 'src/wallet/entity/wallet.entity';
 import { UserEntity } from 'src/user/entity/user.entity';
 import { UserService } from 'src/user/user.service';
+import { Cron, CronExpression } from '@nestjs/schedule';
 
 @Injectable()
 export class SystemService {
@@ -169,16 +170,16 @@ export class SystemService {
                     name: app_name ? app_name : undefined,
                     mobile: mobile ? mobile : undefined,
                     email: email ? email : undefined,
-                    status: [true,false].includes(status) ? status : undefined,
+                    status: [true, false].includes(status) ? status : undefined,
                 },
                 wallet_type: 'closed',
-                status: [true,false].includes(status) ? status : undefined
+                status: [true, false].includes(status) ? status : undefined
             };
 
             data = JSON.parse(JSON.stringify(data)); // To remove undefined Keys
             // Object.keys(data.user).forEach((k) => data.user[k] == null && delete data.user[k]);
             // console.log(data);
-            
+
 
             delete updateSystemDto.mobile;
             delete updateSystemDto.email;
@@ -281,5 +282,14 @@ export class SystemService {
         }
 
     }
+
+    // @Cron('45 * * * * *')
+    // @Cron(CronExpression.EVERY_10_SECONDS, {
+    //     name: 'System Service Test',
+    //     timeZone: 'Asia/Calcutta',
+    // })
+    // handleCron() {
+    //     this.logger.debug('Called when the current second is 45');
+    // }
 
 }

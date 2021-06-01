@@ -7,6 +7,7 @@ import { SystemModule } from './system/system.module';
 import { WalletModule } from './wallet/wallet.module';
 import { UserModule } from './user/user.module';
 import { TransactionModule } from './transaction/transaction.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
@@ -23,7 +24,8 @@ import { TransactionModule } from './transaction/transaction.module';
     }),
     WalletModule,
     UserModule,
-    TransactionModule
+    TransactionModule,
+    ScheduleModule.forRoot()
   ],
   controllers: [AppController],
   providers: [AppService],
