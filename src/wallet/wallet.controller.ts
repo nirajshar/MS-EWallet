@@ -64,6 +64,30 @@ export class WalletController {
         return this.walletService.delete(id);
     }
 
+
+    // Wallet Access Token (START) ----------------------------------------------------
+    
+    // Update Access Token    
+    @ApiTags('Wallet-Access')
+    @ApiResponse({ status: 204, description: 'Wallet access updated successfully' })
+    @ApiResponse({ status: 404, description: 'Wallet not found' })
+    @Post('access-key/generate/:id')
+    async generateNewAccessToken(@Param('id') id: string) {
+        return this.walletService.generateWalletAccessToken(id);
+    }
+
+    // Get Access Token
+    @ApiTags('Wallet-Access')
+    @ApiResponse({ status: 204, description: 'Wallet Access fetched successfully' })
+    @ApiResponse({ status: 404, description: 'Wallet not found' })
+    @Get('access-key/:id')
+    async getAccessToken(@Param('id') id: string) {
+        return this.walletService.getWalletAccessToken(id);
+    }
+    
+    // Wallet Access Token (START) ----------------------------------------------------
+
+
     // Wallet Transactions ---------------------------------------------------------
 
     // Deposit Amount to Wallet (REGULAR) from BANK : INFRA-MGMT Access onlt

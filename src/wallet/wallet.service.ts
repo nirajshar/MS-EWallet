@@ -16,6 +16,8 @@ import { WithdrawFromRegularDto } from './dto/wallet-transaction/withdrawFromReg
 import { UpdateWithdrawDto } from './dto/wallet-transaction/updateWithdrawDto.dto';
 import { RefundRequestDto } from './dto/wallet-transaction/refundRequestDto.dto';
 import { UpdateRefundRequestDto } from './dto/wallet-transaction/updateRefundRequestDto.dto';
+import * as crypto from 'crypto';
+
 
 
 @Injectable()
@@ -507,7 +509,7 @@ export class WalletService {
                 null,
                 'REFUND',
                 userDebitTransaction.data.transaction
-            ); 
+            );
             userWallet.balance = parseFloat(userWallet.balance.toFixed(2)) + parseFloat(Number(userDebitTransaction.data.transaction.amount).toFixed(2));
             await this.walletRepository.save(userWallet);
             await this.transactionService.updateTransactionStatus(refundDebitTransaction.data.transaction.uuid, 'APPROVED');
@@ -725,6 +727,60 @@ export class WalletService {
             message: `Withdrawal request ${txn_status} successfully !`,
             data: {
                 UTR: transaction.data.UTR
+            }
+        }
+
+    }
+
+
+    // Update Access Token
+    async generateWalletAccessToken(id: string): Promise<object> {
+
+        const wallet = await this.walletRepository.findOne({ where: { id } });
+
+        if (!wallet) {
+            throw new HttpException({
+                status: HttpStatus.NOT_FOUND,
+                message: 'Wallet not found'
+            }, HttpStatus.NOT_FOUND)
+        }
+
+        const secret = crypto.randomBytes(20).toString('hex');
+        // console.log(secret);
+
+        const newToken = crypto.createHmac('sha256', secret).digest('hex');
+
+        await this.walletRepository.update({ id }, { token: newToken });
+
+        let walletUpdated = await this.walletRepository.findOne({ where: { id } });
+
+        return {
+            status: 'success',
+            message: 'Wallet access token updated successfully',
+            data: {
+                token: walletUpdated.token
+            }
+        }
+
+    }
+
+    // Get Access Token
+    async getWalletAccessToken(id: string): Promise<object> {
+
+        const wallet = await this.walletRepository.findOne({ where: { id } });
+
+        if (!wallet) {
+            throw new HttpException({
+                status: HttpStatus.NOT_FOUND,
+                message: 'Wallet not found'
+            }, HttpStatus.NOT_FOUND)
+        }
+
+        return {
+            status: 'success',
+            message: 'Wallet access token fetched successfully',
+            data: {
+                token: wallet.token
             }
         }
 

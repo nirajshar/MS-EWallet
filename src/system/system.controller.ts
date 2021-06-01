@@ -68,7 +68,7 @@ export class SystemController {
 
     // Get Access Token
     @ApiTags('System-Access')
-    @ApiResponse({ status: 204, description: 'System Access updated successfully' })
+    @ApiResponse({ status: 204, description: 'System Access fetched successfully' })
     @ApiResponse({ status: 404, description: 'System not found' })
     @Get('access-key/:id')
     async getAccessToken(@Param('id') id: string) {

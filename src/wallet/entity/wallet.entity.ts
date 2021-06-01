@@ -95,6 +95,13 @@ export class WalletEntity {
 
     @OneToMany(type => TransactionEntity, transaction => transaction.wallet)
     transactions: TransactionEntity[];
+
+    @Column({
+        type: 'varchar',
+        nullable: false,
+        unique: true
+    })
+    token: string;
 }
 
 

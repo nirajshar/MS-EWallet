@@ -27,5 +27,7 @@ export class WalletDto {
     @IsNotEmpty()
     wallet_user_type: string;  
  
+    @IsOptional()
+    token?: string;
 
 }
