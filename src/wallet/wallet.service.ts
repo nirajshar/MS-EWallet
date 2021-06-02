@@ -408,20 +408,6 @@ export class WalletService {
             }, HttpStatus.BAD_REQUEST);
         }
 
-        if (transactionsToRefund.debitTransaction.amount !== transactionsToRefund.creditTransaction.amount) {
-            throw new HttpException({
-                status: HttpStatus.CONFLICT,
-                message: `Debit/Credit Transaction amount mismatch !`
-            }, HttpStatus.CONFLICT);
-        }
-
-        if (masterWallet.balance < transactionsToRefund.debitTransaction.amount) {
-            throw new HttpException({
-                status: HttpStatus.CONFLICT,
-                message: `Master Wallet balance insufficient !`
-            }, HttpStatus.CONFLICT);
-        }
-
         transaction = await this.transactionService.refundRequest({
             currency: userWallet.currency,
             amount: transactionsToRefund.debitTransaction.amount,
@@ -430,19 +416,10 @@ export class WalletService {
             masterWallet: masterWallet
         });
 
-        masterWallet.balance = parseFloat(masterWallet.balance.toFixed(2)) - parseFloat(Number(transactionsToRefund.debitTransaction.amount).toFixed(2));
-
-        const paymentStatus = await this.connection.transaction(async manager => {
-            await this.walletRepository.manager.save(masterWallet);
-        }).then(async () => {
-            return true;
-        }).catch(async (err) => {
-            return false;
-        });
-
+        
         const response = {
-            status: paymentStatus ? 'success' : 'failure',
-            message: paymentStatus ? 'Refund request generated successfully. Awaiting approval !' : 'Failed to generate Refund request !',
+            status: 'success',
+            message: 'Refund request generated successfully. Awaiting approval !',
             data: {
                 UTR: transaction.data.UTR
             }
@@ -497,12 +474,16 @@ export class WalletService {
         const userDebitTransaction = await this.transactionService.getTransactionForApproval(refund_against_utr, txn_status, 'DEBIT');
         const userWallet = await this._getWalletOrFail(userDebitTransaction.data.transaction.wallet.id, 'REGULAR');
 
+        if (masterWallet.balance < refundDebitTransaction.data.transaction.amount) {
+            throw new HttpException({
+                status: HttpStatus.CONFLICT,
+                message: `Master Wallet balance insufficient !`
+            }, HttpStatus.CONFLICT);
+        }
+
         if (txn_status === approvalStatus.REJECTED) {
-            transactionState = await this.transactionService.rejectTransaction(refundDebitTransaction.data.transaction, updateRefundRequestDto.txn_status, updateRefundRequestDto.txn_description, 'REFUND:CREDIT');
-            masterWallet.balance = parseFloat(masterWallet.balance.toFixed(2)) + parseFloat(Number(refundDebitTransaction.data.transaction.amount).toFixed(2));
-            await this.walletRepository.save(masterWallet);
             await this.transactionService.updateTransactionStatus(refundDebitTransaction.data.transaction.uuid, 'REJECTED');
-            await this.transactionService.updateTransactionStatus(transactionState.data.transaction.uuid, 'SUCCESS');
+            await this.transactionService.updateUTRRefundStatus(UTR, true);
         } else if (txn_status === approvalStatus.APPROVED) {
             transactionState = await this.transactionService.approveTransaction(refundDebitTransaction.data.transaction,
                 null,
