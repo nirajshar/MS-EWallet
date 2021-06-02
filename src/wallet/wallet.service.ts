@@ -416,7 +416,7 @@ export class WalletService {
             masterWallet: masterWallet
         });
 
-        
+
         const response = {
             status: 'success',
             message: 'Refund request generated successfully. Awaiting approval !',
@@ -442,6 +442,7 @@ export class WalletService {
         }
 
         let transactionState: any;
+        let paymentStatus: boolean;
 
         const { UTR, txn_status } = updateRefundRequestDto;
 
@@ -484,6 +485,7 @@ export class WalletService {
         if (txn_status === approvalStatus.REJECTED) {
             await this.transactionService.updateTransactionStatus(refundDebitTransaction.data.transaction.uuid, 'REJECTED');
             await this.transactionService.updateUTRRefundStatus(UTR, true);
+            paymentStatus = true;
         } else if (txn_status === approvalStatus.APPROVED) {
             transactionState = await this.transactionService.approveTransaction(refundDebitTransaction.data.transaction,
                 null,
@@ -492,12 +494,22 @@ export class WalletService {
                 'REFUND',
                 userDebitTransaction.data.transaction
             );
-            userWallet.balance = parseFloat(userWallet.balance.toFixed(2)) + parseFloat(Number(userDebitTransaction.data.transaction.amount).toFixed(2));
-            await this.walletRepository.save(userWallet);
-            await this.transactionService.updateTransactionStatus(refundDebitTransaction.data.transaction.uuid, 'APPROVED');
-            await this.transactionService.updateTransactionStatus(transactionState.data.creditTransactionCreated.uuid, 'SUCCESS');
-            await this.transactionService.updateUTRRefundStatus(refund_against_utr, true);
-            await this.transactionService.updateUTRRefundStatus(UTR, true);
+
+            paymentStatus = await this.connection.transaction(async manager => {
+                masterWallet.balance = parseFloat(masterWallet.balance.toFixed(2)) - parseFloat(Number(refundDebitTransaction.data.transaction.amount).toFixed(2));
+                userWallet.balance = parseFloat(userWallet.balance.toFixed(2)) + parseFloat(Number(userDebitTransaction.data.transaction.amount).toFixed(2));
+                await this.walletRepository.save(userWallet);
+                await this.walletRepository.manager.save(masterWallet);
+            }).then(async () => {
+                await this.transactionService.updateTransactionStatus(refundDebitTransaction.data.transaction.uuid, 'APPROVED');
+                await this.transactionService.updateTransactionStatus(transactionState.data.creditTransactionCreated.uuid, 'SUCCESS');
+                await this.transactionService.updateUTRRefundStatus(refund_against_utr, true);
+                await this.transactionService.updateUTRRefundStatus(UTR, true);
+                return true;
+            }).catch(async (err) => {
+                return false;
+            });
+
         } else {
             throw new HttpException({
                 status: HttpStatus.BAD_REQUEST,
@@ -506,8 +518,8 @@ export class WalletService {
         }
 
         return {
-            status: 'success',
-            message: `Refund request ${txn_status} successfully !`,
+            status: paymentStatus ? 'success' : 'failure',
+            message: paymentStatus ? `Refund request ${txn_status} successfully !` : 'Something went wrong. Please try again !',
             data: {
                 UTR: refundDebitTransaction.data.UTR
             }
