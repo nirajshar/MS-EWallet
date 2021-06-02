@@ -12,6 +12,7 @@ import { AccountingCreateDto } from './dto/accounting.createDto.dto';
 import { WithdrawCreateTransactionDto } from './dto/withdraw.createDto.dto';
 import { BankCreateDto } from './dto/bank.createDto.dto';
 import { UpdateWithdrawDto } from 'src/wallet/dto/wallet-transaction/updateWithdrawDto.dto';
+import { WalletEntity } from 'src/wallet/entity/wallet.entity';
 
 
 
@@ -398,11 +399,13 @@ export class TransactionService {
 
     }
 
-    async approveTransaction(transaction: TransactionEntity, bank_id: number, txn_status: string, bank_utr_no: string, transaction_type: string, userDebitTransaction: TransactionEntity = null) {
+    async approveTransaction(transaction: TransactionEntity, bank_id: number, txn_status: string, bank_utr_no: string, 
+        transaction_type: string, userDebitTransaction: TransactionEntity = null, masterWallet: WalletEntity = null) {
 
         enum transactionTYPE {
             WITHDRAW = 'WITHDRAW',
-            REFUND = 'REFUND'
+            REFUND = 'REFUND',
+            PAYTOMASTER = 'PAYTOMASTER'
         }
 
         if (!Object.values(transactionTYPE).includes(transaction_type as transactionTYPE)) {
@@ -462,6 +465,30 @@ export class TransactionService {
                 }
             }
 
+        } else if(transaction_type === transactionTYPE.PAYTOMASTER) {
+
+            const creditTransaction = await this._createTransaction({
+                currency: transaction.currency,
+                amount: transaction.amount,
+                txn_description: transaction.txn_description,
+                wallet: masterWallet,
+                UTR: transaction.UTR,
+                txn_type: 'CREDIT'
+            });
+
+            const transactionUpdate = await this.transactionRepository.update(
+                { UTR: transaction.UTR },
+                { txn_status: txn_status }
+            )            
+
+            return {
+                transactionUpdate,
+                data: {
+                    creditTransaction
+                }
+            }
+    
+
         } else {
             throw new HttpException({
                 status: HttpStatus.UNPROCESSABLE_ENTITY,
@@ -484,21 +511,11 @@ export class TransactionService {
             txn_type: 'DEBIT'
         });
 
-        const creditTransaction = await this._createTransaction({
-            currency: transactionCreateDto.currency,
-            amount: transactionCreateDto.amount,
-            txn_description: transactionCreateDto.txn_description,
-            wallet: transactionCreateDto.masterWallet,
-            UTR,
-            txn_type: 'CREDIT'
-        });
-
         return {
             status: 'success',
             message: 'Pay request generated successfully',
             data: {
                 debitTransaction,
-                creditTransaction,
                 UTR
             }
         }

@@ -498,7 +498,7 @@ export class WalletService {
             paymentStatus = await this.connection.transaction(async manager => {
                 masterWallet.balance = parseFloat(masterWallet.balance.toFixed(2)) - parseFloat(Number(refundDebitTransaction.data.transaction.amount).toFixed(2));
                 userWallet.balance = parseFloat(userWallet.balance.toFixed(2)) + parseFloat(Number(userDebitTransaction.data.transaction.amount).toFixed(2));
-                await this.walletRepository.save(userWallet);
+                await this.walletRepository.manager.save(userWallet);
                 await this.walletRepository.manager.save(masterWallet);
             }).then(async () => {
                 await this.transactionService.updateTransactionStatus(refundDebitTransaction.data.transaction.uuid, 'APPROVED');
@@ -638,9 +638,9 @@ export class WalletService {
             bank: bank
         });
 
-        userWallet.balance = parseFloat(userWallet.balance.toFixed(2)) - parseFloat(amount.toFixed(2));
-
+        
         const withdrawalStatus = await this.connection.transaction(async manager => {
+            userWallet.balance = parseFloat(userWallet.balance.toFixed(2)) - parseFloat(amount.toFixed(2));
             await this.walletRepository.manager.save(userWallet);
         }).then(async () => {
             await this.transactionService.updateTransactionStatus(transaction.data.transaction.uuid, 'PENDING');
@@ -771,6 +771,7 @@ export class WalletService {
         }
 
         let paymentStatus: boolean;
+        let transactionState: any;
 
         const { UTR, txn_status } = updatePayToMasterRequest;
 
@@ -784,10 +785,7 @@ export class WalletService {
         const debitTransaction = await this.transactionService.getTransactionForApproval(UTR, txn_status, 'DEBIT');
         const userWallet = await this._getWalletOrFail(debitTransaction.data.transaction.wallet.id, 'REGULAR');
 
-        const creditTransaction = await this.transactionService.getTransactionForApproval(UTR, txn_status, 'CREDIT');
-        const masterWallet = await this._getWalletOrFail(creditTransaction.data.transaction.wallet.id, 'MASTER');
-
-        if (debitTransaction.data.transaction.txn_status !== 'PENDING' || creditTransaction.data.transaction.txn_status !== 'PENDING') {
+        if (debitTransaction.data.transaction.txn_status !== 'PENDING') {
             throw new HttpException({
                 status: HttpStatus.CONFLICT,
                 message: 'Transaction status already updated !',
@@ -799,34 +797,54 @@ export class WalletService {
             }, HttpStatus.CONFLICT)
         }
 
-        if (debitTransaction.data.transaction.amount !== creditTransaction.data.transaction.amount) {
-            throw new HttpException({ status: HttpStatus.CONFLICT, message: 'Debit/Credit amount mismatch !' }, HttpStatus.CONFLICT)
+        const system = await this.systemRepository.findOne({ where: { id: userWallet.system.id } });
+
+        if (!system) {
+            throw new HttpException({
+                status: HttpStatus.NOT_FOUND,
+                message: 'System for User wallet not found !'
+            }, HttpStatus.NOT_FOUND)
         }
+
+        const masterWallet = await this._getWalletOrFail(null, 'MASTER', system.id);        
 
         if (txn_status === approvalStatus.REJECTED) {
 
             await this.transactionService.updateTransactionStatus(debitTransaction.data.transaction.uuid, 'REJECTED');
-            await this.transactionService.updateTransactionStatus(creditTransaction.data.transaction.uuid, 'REJECTED');
-
-            paymentStatus = true;
+            paymentStatus = false;
 
         } else if (txn_status === approvalStatus.APPROVED) {
 
-            debitTransaction.data.transaction.amount
+            if (userWallet.balance < debitTransaction.data.transaction.amount) {
+                throw new HttpException({
+                    status: HttpStatus.CONFLICT,
+                    message: `Wallet balance insufficient !`
+                }, HttpStatus.CONFLICT);
+            }
+
+            transactionState = await this.transactionService.approveTransaction(debitTransaction.data.transaction,
+                null,
+                txn_status,
+                null,
+                'PAYTOMASTER',
+                null,
+                masterWallet
+            );
+
 
             userWallet.balance = parseFloat(userWallet.balance.toFixed(2)) - parseFloat(Number(debitTransaction.data.transaction.amount).toFixed(2));
-            masterWallet.balance = parseFloat(masterWallet.balance.toFixed(2)) + parseFloat(Number(creditTransaction.data.transaction.amount).toFixed(2));
+            masterWallet.balance = parseFloat(masterWallet.balance.toFixed(2)) + parseFloat(Number(debitTransaction.data.transaction.amount).toFixed(2));
 
             paymentStatus = await this.connection.transaction(async manager => {
                 await this.walletRepository.manager.save(userWallet);
                 await this.walletRepository.manager.save(masterWallet);
             }).then(async () => {
                 await this.transactionService.updateTransactionStatus(debitTransaction.data.transaction.uuid, 'APPROVED');
-                await this.transactionService.updateTransactionStatus(creditTransaction.data.transaction.uuid, 'APPROVED');
+                await this.transactionService.updateTransactionStatus(transactionState.data.creditTransaction.uuid, 'SUCCESS');
                 return true;
             }).catch(async (err) => {
                 await this.transactionService.updateTransactionStatus(debitTransaction.data.transaction.uuid, 'FAILURE');
-                await this.transactionService.updateTransactionStatus(creditTransaction.data.transaction.uuid, 'FAILURE');
+                await this.transactionService.updateTransactionStatus(transactionState.data.creditTransaction.uuid, 'FAILURE');
                 return false;
             });
 
