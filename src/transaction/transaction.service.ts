@@ -171,7 +171,8 @@ export class TransactionService {
             txn_description,
             bank: bank ? bank : null,
             wallet: wallet,
-            UTR: UTR
+            UTR: UTR,
+            previous_balance: wallet.balance
         });
 
         const transactionCreated = await this.transactionRepository.save(transaction);

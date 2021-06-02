@@ -80,4 +80,8 @@ export class TransactionEntity {
         default: 0
     })
     is_settled: boolean;
+
+    @Column("decimal", { precision: 10, scale: 2, default: 0.00, nullable: false })
+    previous_balance: number;
+   
 }
