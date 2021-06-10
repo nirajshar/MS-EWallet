@@ -8,10 +8,14 @@ export class RefundTransactionDto {
     @IsString()
     UTR: string;
 
+    // @ApiProperty()
+    // @IsNotEmpty()
+    // @IsString()
+    // user_wallet_id: string;
+
     @ApiProperty()
     @IsNotEmpty()
-    @IsString()
-    user_wallet_id: string;
+    txn_status: string;
 
     @ApiProperty()
     @IsOptional()

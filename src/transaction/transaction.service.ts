@@ -360,13 +360,14 @@ export class TransactionService {
                 message: 'Transaction not found !'
             }, HttpStatus.NOT_FOUND)
         }
-        
+
         return {
             status: 'success',
             message: 'Transaction fetched successfully',
             data: {
                 transaction: transaction,
-                UTR
+                UTR,
+                wallet_id : transaction.wallet.id
             }
         }
 
@@ -400,7 +401,7 @@ export class TransactionService {
 
     }
 
-    async approveTransaction(transaction: TransactionEntity, bank_id: number, txn_status: string, bank_utr_no: string, 
+    async approveTransaction(transaction: TransactionEntity, bank_id: number, txn_status: string, bank_utr_no: string,
         transaction_type: string, userDebitTransaction: TransactionEntity = null, masterWallet: WalletEntity = null) {
 
         enum transactionTYPE {
@@ -437,7 +438,7 @@ export class TransactionService {
                 { txn_status: txn_status }
             )
 
-            
+
             return {
                 transactionUpdate,
                 bankUTRUpdate
@@ -457,7 +458,7 @@ export class TransactionService {
             const transactionUpdate = await this.transactionRepository.update(
                 { UTR: transaction.UTR },
                 { txn_status: txn_status }
-            )            
+            )
 
             return {
                 transactionUpdate,
@@ -466,7 +467,7 @@ export class TransactionService {
                 }
             }
 
-        } else if(transaction_type === transactionTYPE.PAYTOMASTER) {
+        } else if (transaction_type === transactionTYPE.PAYTOMASTER) {
 
             const creditTransaction = await this._createTransaction({
                 currency: transaction.currency,
@@ -480,7 +481,7 @@ export class TransactionService {
             const transactionUpdate = await this.transactionRepository.update(
                 { UTR: transaction.UTR },
                 { txn_status: txn_status }
-            )            
+            )
 
             return {
                 transactionUpdate,
@@ -488,7 +489,7 @@ export class TransactionService {
                     creditTransaction
                 }
             }
-    
+
 
         } else {
             throw new HttpException({
@@ -523,4 +524,16 @@ export class TransactionService {
 
     }
 
+    // findbyanything 
+    async getTransaction(payload?: object): Promise<TransactionEntity> {
+
+        const transaction = await this.transactionRepository.findOne({ where: { ...payload }, relations: ['wallet', 'wallet.system'] })
+
+        if (!transaction) {
+            throw new HttpException({ status: HttpStatus.BAD_REQUEST, message: 'Transaction not found !' }, HttpStatus.BAD_REQUEST)
+        }
+
+        return transaction
+
+    }
 }

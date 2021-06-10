@@ -3,9 +3,9 @@ import { IsNotEmpty, IsOptional } from "class-validator";
 
 export class UpdateWithdrawDto {
 
-    @ApiProperty()
-    @IsNotEmpty()
-    user_wallet_id: string;
+    // @ApiProperty()
+    // @IsNotEmpty()
+    // user_wallet_id: string;
 
     @ApiProperty()
     @IsNotEmpty()

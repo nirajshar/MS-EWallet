@@ -25,7 +25,7 @@ export class SystemService {
 
     async findAll(): Promise<Array<object>> {
         const systems = await this.systemRepository.find();
-        return systems;
+        return systems.map(system => toSystemDto(system));
     }
 
     async findOne(id: string): Promise<object> {

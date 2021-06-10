@@ -37,6 +37,13 @@ export class UserEntity {
     @CreateDateColumn() createdAt : Date;
     @UpdateDateColumn() updatedAt : Date; 
 
+    @Column({
+        type: "enum",
+        enum: ['MASTER', 'REGULAR'],
+        enumName: 'wallet_user_type',
+        default: 'REGULAR'
+    })
+    public wallet_user_type: string;
     
 
 }

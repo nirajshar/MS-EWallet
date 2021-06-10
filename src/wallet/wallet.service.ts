@@ -1,4 +1,4 @@
-import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { SystemEntity } from 'src/system/entity/system.entity';
 import { UserService } from 'src/user/user.service';
@@ -70,6 +70,8 @@ export class WalletService {
             });
         }
 
+        const secret = crypto.randomBytes(20).toString('hex');
+
         user = await this.userService.findOne({ where: { mobile: mobile } });
 
         const userWalletExists = await this.walletRepository.findOne({ where: { user: user }, relations: ['system'] });
@@ -114,7 +116,8 @@ export class WalletService {
             wallet_type,
             status,
             system,
-            wallet_user_type
+            wallet_user_type,
+            token: secret
         });
 
         let walletCreated = await this.walletRepository.save(wallet);
@@ -313,13 +316,22 @@ export class WalletService {
     }
 
     // Pay from Wallet (REGULAR) to Wallet (MASTER)   
-    async payToMasterWallet(user_wallet_id: string, payToMasterDto: PayToMasterDto) {
+    async payToMasterWallet(user_account_no: string, payToMasterDto: PayToMasterDto) {
+
+        const userAccount = await this.walletRepository.findOne({ where: { account_no: user_account_no } })
+
+        if (!userAccount) {
+            throw new HttpException({
+                status: HttpStatus.NOT_FOUND,
+                message: 'User account not found !'
+            }, HttpStatus.NOT_FOUND)
+        }
 
         const { amount, txn_description } = payToMasterDto;
 
         let transaction: any;
 
-        const userWallet = await this._getWalletOrFail(user_wallet_id, 'REGULAR');
+        const userWallet = await this._getWalletOrFail(userAccount.id, 'REGULAR');
 
         const system = await this.systemRepository.findOne({ where: { id: userWallet.system.id } });
 
@@ -330,7 +342,7 @@ export class WalletService {
             }, HttpStatus.NOT_FOUND)
         }
 
-        const masterWallet = await this._getWalletOrFail(user_wallet_id, 'MASTER', system.id);
+        const masterWallet = await this._getWalletOrFail(userAccount.id, 'MASTER', system.id);
 
         if (userWallet.balance < amount) {
             throw new HttpException({
@@ -380,13 +392,22 @@ export class WalletService {
     }
 
     // Generate Refund Request by Wallet (REGULAR) from Wallet (MASTER)
-    async refundRequest(user_wallet_id: string, refundRequestDto: RefundRequestDto) {
+    async refundRequest(user_account_no: string, refundRequestDto: RefundRequestDto) {
+
+        const userAccount = await this.walletRepository.findOne({ where: { account_no: user_account_no } })
+
+        if (!userAccount) {
+            throw new HttpException({
+                status: HttpStatus.NOT_FOUND,
+                message: 'User account not found !'
+            }, HttpStatus.NOT_FOUND)
+        }
 
         const { UTR, txn_description } = refundRequestDto;
 
         let transaction: any;
 
-        const userWallet = await this._getWalletOrFail(user_wallet_id, 'REGULAR');
+        const userWallet = await this._getWalletOrFail(userAccount.id, 'REGULAR');
 
         const system = await this.systemRepository.findOne({ where: { id: userWallet.system.id } });
 
@@ -532,11 +553,13 @@ export class WalletService {
     // Generate Refund from Wallet (MASTER) to Wallet (REGULAR)
     async refundTransaction(refundTransactionDto: RefundTransactionDto) {
 
-        const { UTR, user_wallet_id } = refundTransactionDto;
+        const { UTR, txn_status } = refundTransactionDto;
+
+        const refundTransaction = await this.transactionService.getTransactionForApproval(UTR, txn_status, 'DEBIT');
 
         let transaction: any;
 
-        const userWallet = await this._getWalletOrFail(user_wallet_id, 'REGULAR');
+        const userWallet = await this._getWalletOrFail(refundTransaction.data.wallet_id , 'REGULAR');
 
         const system = await this.systemRepository.findOne({ where: { id: userWallet.system.id } });
 
@@ -547,7 +570,7 @@ export class WalletService {
             }, HttpStatus.NOT_FOUND)
         }
 
-        const masterWallet = await this._getWalletOrFail(user_wallet_id, 'MASTER', system.id);
+        const masterWallet = await this._getWalletOrFail(refundTransaction.data.wallet_id, 'MASTER', system.id);
 
         const transactionsToRefund = await this.transactionService.getTransactionFromUTRWallet(UTR, userWallet.id, masterWallet.id);
 
@@ -575,7 +598,7 @@ export class WalletService {
         transaction = await this.transactionService.refundTransaction({
             currency: userWallet.currency,
             amount: transactionsToRefund.debitTransaction.amount,
-            txn_description: 'Refund-Wallet : ' + UTR,
+            txn_description: 'Refund-Wallet-Direct : ' + UTR,
             userWallet: userWallet,
             masterWallet: masterWallet
         });
@@ -587,13 +610,13 @@ export class WalletService {
             await this.walletRepository.manager.save(masterWallet);
             await this.walletRepository.manager.save(userWallet);
         }).then(async () => {
-            await this.transactionService.updateTransactionStatus(transaction.data.debitTransaction.uuid, 'SUCCESS');
+            await this.transactionService.updateTransactionStatus(transaction.data.debitTransaction.uuid, 'APPROVED');
             await this.transactionService.updateTransactionStatus(transaction.data.creditTransaction.uuid, 'SUCCESS');
             await this.transactionService.updateUTRRefundStatus(UTR, true);
             return true;
         }).catch(async (err) => {
-            await this.transactionService.updateTransactionStatus(transaction.data.debitTransaction.uuid, 'FAILED');
-            await this.transactionService.updateTransactionStatus(transaction.data.creditTransaction.uuid, 'FAILED');
+            await this.transactionService.updateTransactionStatus(transaction.data.debitTransaction.uuid, 'FAILURE');
+            await this.transactionService.updateTransactionStatus(transaction.data.creditTransaction.uuid, 'FAILURE');
             return false;
         });
 
@@ -615,13 +638,22 @@ export class WalletService {
     }
 
     // Withdraw Request Initiate from Walllet (REGULAR)
-    async withdrawRequest(user_wallet_id: string, withdrawFromRegularDto: WithdrawFromRegularDto) {
+    async withdrawRequest(user_account_no: string, withdrawFromRegularDto: WithdrawFromRegularDto) {
+
+        const userAccount = await this.walletRepository.findOne({ where: { account_no: user_account_no } })
+
+        if (!userAccount) {
+            throw new HttpException({
+                status: HttpStatus.NOT_FOUND,
+                message: 'User account not found !'
+            }, HttpStatus.NOT_FOUND)
+        }
 
         const { amount, txn_description, bank } = withdrawFromRegularDto;
 
         let transaction: any;
 
-        const userWallet = await this._getWalletOrFail(user_wallet_id, 'REGULAR');
+        const userWallet = await this._getWalletOrFail(userAccount.id, 'REGULAR');
 
         if (userWallet.balance < amount) {
             throw new HttpException({
@@ -638,7 +670,7 @@ export class WalletService {
             bank: bank
         });
 
-        
+
         const withdrawalStatus = await this.connection.transaction(async manager => {
             userWallet.balance = parseFloat(userWallet.balance.toFixed(2)) - parseFloat(amount.toFixed(2));
             await this.walletRepository.manager.save(userWallet);
@@ -677,7 +709,7 @@ export class WalletService {
 
         let transactionState: any;
 
-        const { user_wallet_id, UTR, bank_utr_no, txn_status } = updateWithdrawDto;
+        const { UTR, bank_utr_no, txn_status } = updateWithdrawDto;
 
         if (!Object.values(approvalStatus).includes(txn_status as approvalStatus)) {
             throw new HttpException({
@@ -687,15 +719,7 @@ export class WalletService {
         }
 
         const transaction = await this.transactionService.getTransactionForApproval(UTR, txn_status, 'WITHDRAW:DEBIT');
-
-        if (transaction.data.transaction.wallet.id !== user_wallet_id) {
-            throw new HttpException({
-                status: HttpStatus.BAD_REQUEST,
-                message: 'Transaction not associated with given User Wallet'
-            }, HttpStatus.BAD_REQUEST)
-        }
-
-        const userWallet = await this._getWalletOrFail(user_wallet_id, 'REGULAR');
+        const userWallet = await this._getWalletOrFail(transaction.data.wallet_id, 'REGULAR');
 
         if (txn_status === approvalStatus.REJECTED) {
             transactionState = await this.transactionService.rejectTransaction(transaction.data.transaction, updateWithdrawDto.txn_status, updateWithdrawDto.txn_description, 'WITHDRAW:CREDIT');
@@ -763,7 +787,7 @@ export class WalletService {
 
     }
 
-    async updatePayToMasterRequest(updatePayToMasterRequest: UpdatePayToMasterRequestDto) {
+    async updatePayToMasterRequest(user_account_no: string, updatePayToMasterRequest: UpdatePayToMasterRequestDto) {
 
         enum approvalStatus {
             APPROVED = "APPROVED",
@@ -806,7 +830,7 @@ export class WalletService {
             }, HttpStatus.NOT_FOUND)
         }
 
-        const masterWallet = await this._getWalletOrFail(null, 'MASTER', system.id);        
+        const masterWallet = await this._getWalletOrFail(null, 'MASTER', system.id);
 
         if (txn_status === approvalStatus.REJECTED) {
 
@@ -922,6 +946,90 @@ export class WalletService {
     }
 
 
+    // Validate MASTER Guard 
+    async systemAccessCheck(key: string, token: string): Promise<SystemEntity> {
 
+        const system = await this.systemRepository.findOne({
+            where: {
+                key: key,
+                token: token
+            }
+        })
+
+        if (!system) {
+            throw new UnauthorizedException();
+        }
+
+        return system;
+
+    }
+
+    // Validate REGULAR Guard
+    async walletAccessCheck(token: string): Promise<WalletEntity> {
+
+        const wallet = await this.walletRepository.findOne({
+            where: {
+                token: token
+            }
+        })
+
+        if (!wallet) {
+            throw new UnauthorizedException();
+        }
+
+        return wallet;
+    }
+
+    // Validate Wallet Of System
+    async walletOfSystem(user_wallet_id: string, system_key: string, system_token: string) {
+
+        const wallet = await this.walletRepository.findOne({ where: { id: user_wallet_id }, relations: ['system'] })
+
+        if (!wallet) {
+            return false
+        }
+
+        const system = await this.systemRepository.findOne({ where: { id: wallet.system.id } })
+
+        if (!system) {
+            return false
+        }
+
+        const systemFromCreds = await this.systemRepository.findOne({ where: { key: system_key, token: system_token } });
+
+        if (!systemFromCreds) {
+            return false
+        }
+
+        if (system.id !== systemFromCreds.id) {
+            return false
+        }
+
+        return true;
+    }
+
+    // Approver Guard 
+    async approverSystem(UTR: string, key: string, token: string) {
+
+        const transaction = await this.transactionService.getTransaction({ UTR })
+
+        if(!transaction) return false
+
+        const transactionWalletSystem = await this.systemRepository.findOne({where : {id : transaction.wallet.system.id}})
+
+        if(!transactionWalletSystem) return false
+
+        const transactionWalletSystemMaster = await this.walletRepository.findOne({where : {system: transactionWalletSystem.id, wallet_user_type: 'MASTER'}})
+
+        const system = await this.systemRepository.findOne({ where: { key, token } })
+        const wallet = await this.walletRepository.findOne({ where: { system: system.id, wallet_user_type: 'MASTER' } })
+
+        if (transactionWalletSystemMaster.id !== wallet.id) {
+            return false;
+        }
+
+        return true;
+
+    }
 
 }
