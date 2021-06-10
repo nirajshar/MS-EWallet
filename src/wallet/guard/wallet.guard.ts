@@ -17,11 +17,11 @@ export class WalletGuard implements CanActivate {
 
     const headers = request.headers;
 
-    if (!headers.token) {
+    if (!headers.account_no || !headers.token) {
       return false;
     }
 
-    let wallet = await this.walletService.walletAccessCheck(headers.token);
+    let wallet = await this.walletService.walletAccessCheck(headers.account_no, headers.token);
 
     if (!wallet) {
       return false;

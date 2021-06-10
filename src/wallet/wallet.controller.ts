@@ -13,7 +13,7 @@ import { WalletUpdateDto } from './dto/wallet/wallet.updateDto.dto';
 import { ApproverSystem } from './guard/approverSystem.guard';
 import { SystemGuard } from './guard/system.guard';
 import { WalletOfSystem } from './guard/walletOfSystem.guard';
-import { WalletGuard } from './guard/walletRegular.guard';
+import { WalletGuard } from './guard/wallet.guard';
 import { WalletService } from './wallet.service';
 
 @Controller('wallet')
@@ -180,9 +180,9 @@ export class WalletController {
     @UseGuards(WalletGuard)
     @Post('transactions')
     async findOneWalletWithTransactions(
-        @Headers('wallet-id') id: string,
+        @Headers('account_no') account_no: string,
         @Headers('token') token: string) {
-        return this.walletService.findOneWalletWithTransactions(id);
+        return this.walletService.findOneWalletWithTransactions(account_no);
     }
 
     // Wallet Transactions (USER) ----------------------------------------------------
@@ -195,10 +195,10 @@ export class WalletController {
     @UseGuards(WalletGuard)
     @Post('pay')
     async payToMasterWallet(
-        @Headers('user_account_no') user_account_no: string,
+        @Headers('account_no') account_no: string,
         @Headers('token') token: string,
         @Body() payToMasterDto: PayToMasterDto) {
-        return this.walletService.payToMasterWallet(user_account_no, payToMasterDto);
+        return this.walletService.payToMasterWallet(account_no, payToMasterDto);
     }
 
     // Refund Request by Wallet (REGULAR) from Wallet (MASTER) 
@@ -210,10 +210,10 @@ export class WalletController {
     @UseGuards(WalletGuard)
     @Post('refund/request')
     async refundRequest(
-        @Headers('user_account_no') user_account_no: string,
+        @Headers('account_no') account_no: string,
         @Headers('token') token: string,
         @Body() refundRequestDto: RefundRequestDto) {
-        return this.walletService.refundRequest(user_account_no, refundRequestDto);
+        return this.walletService.refundRequest(account_no, refundRequestDto);
     }    
 
     // Withdraw Request from Wallet (REGULAR) to BANK 
@@ -224,10 +224,10 @@ export class WalletController {
     @UseGuards(WalletGuard)
     @Post('withdraw/request')
     async withdrawRequest(
-        @Headers('user_account_no') user_account_no: string,
+        @Headers('account_no') account_no: string,
         @Headers('token') token: string,
         @Body() withdrawFromRegularDto: WithdrawFromRegularDto) {
-        return this.walletService.withdrawRequest(user_account_no, withdrawFromRegularDto);
+        return this.walletService.withdrawRequest(account_no, withdrawFromRegularDto);
     }   
 
     // Pay to Master Approval/Rejection by Wallet (REGULAR) 
@@ -238,10 +238,10 @@ export class WalletController {
     @UseGuards(WalletGuard)
     @Post('pay/approve')
     async updatePayToMasterRequest(
-        @Headers('user_account_no') user_account_no: string,
+        @Headers('account_no') account_no: string,
         @Headers('token') token: string,
         @Body() updatePayToMasterRequestDto: UpdatePayToMasterRequestDto) {
-        return this.walletService.updatePayToMasterRequest(user_account_no, updatePayToMasterRequestDto);
+        return this.walletService.updatePayToMasterRequest(account_no, updatePayToMasterRequestDto);
     }
 
     

@@ -298,10 +298,10 @@ export class WalletService {
     }
 
     // FindOne Wallet with All Transactions
-    async findOneWalletWithTransactions(id: string) {
+    async findOneWalletWithTransactions(account_no: string) {
 
         const walletTransactionBank = await this.walletRepository.findOne({
-            where: { id },
+            where: { account_no },
             relations: ['user', 'system', 'transactions', 'transactions.bank']
         })
 
@@ -965,10 +965,11 @@ export class WalletService {
     }
 
     // Validate REGULAR Guard
-    async walletAccessCheck(token: string): Promise<WalletEntity> {
+    async walletAccessCheck(account_no: string, token: string): Promise<WalletEntity> {
 
         const wallet = await this.walletRepository.findOne({
             where: {
+                account_no: account_no,
                 token: token
             }
         })
